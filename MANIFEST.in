@@ -1,0 +1,15 @@
+include README.md
+include LICENSE
+include requirements.txt
+include requirements-dev.txt
+include CONTRIBUTING.md
+recursive-include examples *.m3u *.json *.csv *.log
+recursive-include docs *.md *.rst *.txt
+recursive-include tests *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+recursive-exclude * *.pyo
+recursive-exclude * .DS_Store
+exclude .venv
+exclude MUSIC
+exclude archive

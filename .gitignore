@@ -1,0 +1,111 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Music Library Specific
+*.log
+*.db
+*.db-journal
+.music_tools_cache.json
+.flac_index.db
+
+# Test data and outputs
+*_matched.m3u
+*_matched.csv
+*_songshift.json
+*_unmatched.log
+
+# Local configuration
+config.local.py
+local_settings.py
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Audio files (exclude large music files from repo)
+*.flac
+*.mp3
+*.wav
+*.m4a
+*.aac
+MUSIC/
+music/
+audio/
+
+# CSV and data files (keep examples, exclude large datasets)
+*.csv
+!examples/*.csv
+!examples/data/

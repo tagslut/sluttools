@@ -1,0 +1,9 @@
+mutagen
+rapidfuzz
+rich
+aiofiles
+requests
+sqlite-utils
+pandas
+tqdm
+fuzzywuzzy
