@@ -7,3 +7,5 @@ sqlite-utils
 pandas
 tqdm
 fuzzywuzzy
+python-levenshtein
+openpyxl
