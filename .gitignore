@@ -129,3 +129,18 @@ audio/
 *.csv
 !examples/*.csv
 !examples/data/
+
+# .gitignore additions for secrets and Python artifacts
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+*.log
+output/
