@@ -57,26 +57,45 @@ A comprehensive toolkit for managing and cataloging large music libraries with f
 - Dependencies listed in requirements.txt:
 
 ```txt
-mutagen
-fuzzywuzzy
-python-Levenshtein
-rich
-aiofiles
-pandas
-tqdm
-asyncio
-```
+## 📦 Installation
 
-## 📦 Setup
+### From Source
 
 ```bash
-git clone <repository-url>
-cd MusicAutomation
+git clone https://github.com/tagslut/sluttools.git
+cd sluttools
 
+# Create virtual environment
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-pip install -r requirements.txt
+# Install in development mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e .[dev]
+```
+
+### From PyPI (when available)
+
+```bash
+pip install music-automation-toolkit
+```
+
+### Requirements
+
+- Python 3.11 or higher
+- FFmpeg (for audio processing)
+- SoX (for audio resampling)
+
+**Core Dependencies:**
+```
+mutagen>=1.47.0
+pandas>=2.0.0
+rich>=13.0.0
+fuzzywuzzy>=0.18.0
+python-levenshtein>=0.21.0
+openpyxl>=3.1.0
 ```
 
 ## 🚀 Usage
@@ -95,7 +114,20 @@ source .venv/bin/activate
 
 **Interactive Mode (with animated UI):**
 ```bash
-python g.py
+musictools match
+```
+
+**Command Line Interface:**
+```bash
+# Match a playlist
+musictools match /path/to/playlist.m3u
+
+# Manage FLAC database
+musictools db refresh ~/Music/FLACs
+musictools db list --limit 10
+
+# Copy playlist files
+musictools copy /path/to/playlist.m3u /destination/folder
 ```
 
 **Command Line Mode:**

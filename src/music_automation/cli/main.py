@@ -243,7 +243,7 @@ def main():
 
         # Handle playlist matching
         if args.command == "match":
-            script_path = os.path.join(os.path.dirname(__file__), "..", "music_automation", "playlist_matcher.py")
+            script_path = os.path.join(os.path.dirname(__file__), "..", "core", "matcher.py")
             if os.path.exists(script_path):
                 script_args = []
                 if hasattr(args, 'playlist') and args.playlist:
@@ -254,7 +254,7 @@ def main():
 
         # Handle playlist copying
         elif args.command == "copy":
-            script_path = os.path.join(os.path.dirname(__file__), "..", "music_automation", "playlist_copier.py")
+            script_path = os.path.join(os.path.dirname(__file__), "..", "core", "copier.py")
             if os.path.exists(script_path):
                 copy_args = [args.playlist, args.destination]
                 if args.flat:
@@ -272,7 +272,7 @@ def main():
 
         # Handle database commands
         elif args.command == "db":
-            script_path = os.path.join(os.path.dirname(__file__), "..", "music_automation", "flac_database.py")
+            script_path = os.path.join(os.path.dirname(__file__), "..", "core", "database.py")
             if not os.path.exists(script_path):
                 console.print(f"[bold red]Error: FLAC database script not found at {script_path}[/bold red]")
                 return
@@ -299,7 +299,7 @@ def main():
 
         # Handle resampling
         elif args.command == "resample":
-            script_path = os.path.join(os.path.dirname(__file__), "..", "music_automation", "flac_database.py")
+            script_path = os.path.join(os.path.dirname(__file__), "..", "core", "database.py")
             if os.path.exists(script_path):
                 resample_args = ["resample", "--db", args.db]
                 if args.dry_run:

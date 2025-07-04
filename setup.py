@@ -21,7 +21,8 @@ setup(
     description="A comprehensive toolkit for managing and cataloging large music libraries",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    packages=find_packages(),
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     include_package_data=True,
     install_requires=read_requirements('requirements.txt'),
     extras_require={
@@ -29,11 +30,11 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'musictools=bin.musictools:main',
-            'playlist-matcher=music_automation.playlist_matcher:main',
-            'flac-database=music_automation.flac_database:main',
-            'playlist-copier=music_automation.playlist_copier:main',
-            'audio-processor=music_automation.audio_processor:main',
+            'musictools=music_automation.cli.main:main',
+            'playlist-matcher=music_automation.core.matcher:main',
+            'flac-database=music_automation.core.database:main',
+            'playlist-copier=music_automation.core.copier:main',
+            'audio-processor=music_automation.core.processor:main',
         ],
     },
     classifiers=[
