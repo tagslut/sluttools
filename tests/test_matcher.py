@@ -1,43 +1,37 @@
-"""Test the playlist matcher module."""
+"""Tests for playlist matching logic."""
 
-import unittest
-import tempfile
-import os
+from __future__ import annotations
+
 from pathlib import Path
 
-# TODO: Import from refactored structure once modules are updated
-# from music_automation.core.matcher import PlaylistMatcher
+from music_automation.core.matcher import match_entry, normalize_string
 
 
-class TestPlaylistMatcher(unittest.TestCase):
-    """Test cases for playlist matching functionality."""
+def test_match_entry_basic(tmp_path: Path) -> None:
+    """Entry with matching artist/title should return the FLAC path."""
+    flac = tmp_path / "song.flac"
+    flac.touch()
+    lookup = [(str(flac), normalize_string(flac.stem))]
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        # Clean up temp directory
-        for file in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, file))
-        os.rmdir(self.temp_dir)
-
-    def test_playlist_loading(self):
-        """Test playlist loading functionality."""
-        # TODO: Implement test once matcher module is updated
-        pass
-
-    def test_fuzzy_matching(self):
-        """Test fuzzy matching algorithm."""
-        # TODO: Implement test once matcher module is updated
-        pass
-
-    def test_playlist_export(self):
-        """Test playlist export functionality."""
-        # TODO: Implement test once matcher module is updated
-        pass
+    entry = {"artist": "Song", "title": ""}
+    assert match_entry(entry, lookup) == str(flac)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_match_entry_no_match(tmp_path: Path) -> None:
+    """Return None when there is no suitable match."""
+    lookup: list[tuple[str, str]] = []
+    entry = {"artist": "X", "title": "Y"}
+    assert match_entry(entry, lookup) is None
+
+
+def test_match_entry_with_indexes(tmp_path: Path) -> None:
+    """Ensure indexes are used when provided."""
+    flac = tmp_path / "a.flac"
+    flac.touch()
+    norm = normalize_string(flac.stem)
+    lookup = [(str(flac), norm)]
+    artist_index = {norm: {str(flac)}}
+    title_index = {norm: {str(flac)}}
+
+    entry = {"artist": "A", "title": ""}
+    assert match_entry(entry, lookup, artist_index, title_index) == str(flac)
