@@ -4,7 +4,7 @@ Music Tools - Unified CLI for Music Library Automation
 
 This script provides a unified command-line interface to all music automation tools:
 - Playlist matching and generation
-- FLAC database management  
+- FLAC database management
 - Playlist file copying
 - FLAC resampling
 """
