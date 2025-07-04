@@ -15,6 +15,7 @@ from dataclasses import dataclass
 @dataclass
 class FlaccidConfig:
     """Configuration for flaccid integration."""
+
     db_path: Optional[str] = None
     music_dirs: Optional[List[str]] = None
     output_dir: str = "output"
@@ -42,26 +43,26 @@ class FlaccidMusicAutomationAdapter:
     def get_lib_functions(self) -> Dict[str, Any]:
         """Get functions suitable for flaccid/lib/ module."""
         return {
-            'scan_flac_directory': self._scan_flac_directory,
-            'get_library_stats': self._get_library_stats,
-            'check_corruption': self._check_corruption,
-            'index_library': self._index_library,
+            "scan_flac_directory": self._scan_flac_directory,
+            "get_library_stats": self._get_library_stats,
+            "check_corruption": self._check_corruption,
+            "index_library": self._index_library,
         }
 
     def get_tag_functions(self) -> Dict[str, Any]:
         """Get functions suitable for flaccid/tag/ module."""
         return {
-            'enrich_metadata': self._enrich_metadata,
-            'normalize_tags': self._normalize_tags,
-            'batch_tag_update': self._batch_tag_update,
+            "enrich_metadata": self._enrich_metadata,
+            "normalize_tags": self._normalize_tags,
+            "batch_tag_update": self._batch_tag_update,
         }
 
     def get_core_functions(self) -> Dict[str, Any]:
         """Get functions suitable for flaccid/core/ module."""
         return {
-            'load_music_plugins': self._load_music_plugins,
-            'get_plugin_info': self._get_plugin_info,
-            'manage_config': self._manage_config,
+            "load_music_plugins": self._load_music_plugins,
+            "get_plugin_info": self._get_plugin_info,
+            "manage_config": self._manage_config,
         }
 
     def _scan_flac_directory(self, path: str, recursive: bool = True) -> Dict[str, Any]:
@@ -69,89 +70,81 @@ class FlaccidMusicAutomationAdapter:
         # This would call the actual database scanning function
         # For now, return a placeholder structure
         return {
-            'path': path,
-            'files_found': 0,
-            'total_size': 0,
-            'scan_time': 0,
-            'status': 'success'
+            "path": path,
+            "files_found": 0,
+            "total_size": 0,
+            "scan_time": 0,
+            "status": "success",
         }
 
     def _get_library_stats(self) -> Dict[str, Any]:
         """Get library statistics - wrapper for lib/ module."""
         return {
-            'total_files': 0,
-            'total_size': 0,
-            'total_duration': 0,
-            'file_formats': {},
-            'sample_rates': {},
-            'bit_depths': {},
+            "total_files": 0,
+            "total_size": 0,
+            "total_duration": 0,
+            "file_formats": {},
+            "sample_rates": {},
+            "bit_depths": {},
         }
 
     def _check_corruption(self, file_path: str) -> Dict[str, Any]:
         """Check file corruption - wrapper for lib/ module."""
         return {
-            'file_path': file_path,
-            'is_corrupted': False,
-            'error_details': None,
-            'check_time': 0,
+            "file_path": file_path,
+            "is_corrupted": False,
+            "error_details": None,
+            "check_time": 0,
         }
 
     def _index_library(self, paths: List[str]) -> Dict[str, Any]:
         """Index library - wrapper for lib/ module."""
         return {
-            'indexed_paths': paths,
-            'files_processed': 0,
-            'time_taken': 0,
-            'status': 'success'
+            "indexed_paths": paths,
+            "files_processed": 0,
+            "time_taken": 0,
+            "status": "success",
         }
 
     def _enrich_metadata(self, file_path: str) -> Dict[str, Any]:
         """Enrich metadata - wrapper for tag/ module."""
-        return {
-            'file_path': file_path,
-            'metadata_added': [],
-            'status': 'success'
-        }
+        return {"file_path": file_path, "metadata_added": [], "status": "success"}
 
     def _normalize_tags(self, file_path: str) -> Dict[str, Any]:
         """Normalize tags - wrapper for tag/ module."""
-        return {
-            'file_path': file_path,
-            'changes_made': [],
-            'status': 'success'
-        }
+        return {"file_path": file_path, "changes_made": [], "status": "success"}
 
-    def _batch_tag_update(self, file_paths: List[str], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def _batch_tag_update(
+        self, file_paths: List[str], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Batch tag update - wrapper for tag/ module."""
         return {
-            'files_processed': len(file_paths),
-            'updates_applied': updates,
-            'status': 'success'
+            "files_processed": len(file_paths),
+            "updates_applied": updates,
+            "status": "success",
         }
 
     def _load_music_plugins(self) -> Dict[str, Any]:
         """Load music plugins - wrapper for core/ module."""
         return {
-            'loaded_plugins': ['database', 'matcher', 'processor', 'copier'],
-            'status': 'success'
+            "loaded_plugins": ["database", "matcher", "processor", "copier"],
+            "status": "success",
         }
 
     def _get_plugin_info(self, plugin_name: str) -> Dict[str, Any]:
         """Get plugin info - wrapper for core/ module."""
         return {
-            'name': plugin_name,
-            'version': '2.0.0',
-            'description': f'Music automation plugin: {plugin_name}',
-            'status': 'active'
+            "name": plugin_name,
+            "version": "2.0.0",
+            "description": f"Music automation plugin: {plugin_name}",
+            "status": "active",
         }
 
-    def _manage_config(self, action: str, config_data: Optional[Dict] = None) -> Dict[str, Any]:
+    def _manage_config(
+        self, action: str, config_data: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """Manage configuration - wrapper for core/ module."""
-        return {
-            'action': action,
-            'config': config_data,
-            'status': 'success'
-        }
+        return {"action": action, "config": config_data, "status": "success"}
 
 
 def create_flaccid_integration_example():
@@ -246,9 +239,9 @@ class PluginManager:
 '''
 
     return {
-        'lib_example': lib_example,
-        'tag_example': tag_example,
-        'core_example': core_example
+        "lib_example": lib_example,
+        "tag_example": tag_example,
+        "core_example": core_example,
     }
 
 
@@ -346,8 +339,8 @@ def enrich(file_path: str):
 
 # Export main integration components
 __all__ = [
-    'FlaccidConfig',
-    'FlaccidMusicAutomationAdapter',
-    'create_flaccid_integration_example',
-    'create_setup_instructions'
+    "FlaccidConfig",
+    "FlaccidMusicAutomationAdapter",
+    "create_flaccid_integration_example",
+    "create_setup_instructions",
 ]

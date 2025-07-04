@@ -3,7 +3,9 @@ def get_problematic_sample_rates(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     results = []
-    for row in cur.execute("SELECT DISTINCT json_extract(format_json, '$.tags.SAMPLERATE') FROM flacs"):
+    for row in cur.execute(
+        "SELECT DISTINCT json_extract(format_json, '$.tags.SAMPLERATE') FROM flacs"
+    ):
         try:
             sr = int(row[0])
             if sr not in (44100, 48000):
@@ -12,6 +14,7 @@ def get_problematic_sample_rates(db_path):
             continue
     conn.close()
     return sorted(set(results))
+
 
 def batch_resample(db_path, dry_run=False):
     """Prompt for sample rate and resample all matching files using SoX."""
@@ -40,7 +43,10 @@ def batch_resample(db_path, dry_run=False):
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute("SELECT path FROM flacs WHERE json_extract(format_json, '$.tags.SAMPLERATE') = ?", (str(selected_rate),))
+    cur.execute(
+        "SELECT path FROM flacs WHERE json_extract(format_json, '$.tags.SAMPLERATE') = ?",
+        (str(selected_rate),),
+    )
     files = [row[0] for row in cur.fetchall()]
     conn.close()
 
@@ -50,6 +56,8 @@ def batch_resample(db_path, dry_run=False):
         print(" ".join(cmd))
         if not dry_run:
             subprocess.run(cmd)
+
+
 #!/usr/bin/env python3
 import sqlite3
 import json
@@ -61,18 +69,22 @@ from mutagen.flac import FLAC
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 
+
 def normalize_string(s):
     """Normalize a string for fuzzy matching."""
     import unicodedata
     import re
+
     s = unicodedata.normalize("NFD", s.lower())
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     return re.sub(r"[^\w\s]+", " ", s).strip()
+
 
 def read_tags(path):
     """Extract tags from a FLAC file."""
     try:
         audio = FLAC(path)
+
         def get_tag(audio, key):
             val = audio.get(key)
             if isinstance(val, list) and val:
@@ -80,16 +92,18 @@ def read_tags(path):
             if isinstance(val, str):
                 return val
             return None
+
         return {
             "artist": get_tag(audio, "artist"),
-            "album":  get_tag(audio, "album"),
-            "title":  get_tag(audio, "title"),
-            "trackno":get_tag(audio, "tracknumber"),
-            "year":   get_tag(audio, "date"),
+            "album": get_tag(audio, "album"),
+            "title": get_tag(audio, "title"),
+            "trackno": get_tag(audio, "tracknumber"),
+            "year": get_tag(audio, "date"),
         }
     except Exception as e:
         print(f"Error reading tags for {path}: {e}")
         return {}
+
 
 def get_format_json(path):
     """Extract format information using ffprobe."""
@@ -103,6 +117,7 @@ def get_format_json(path):
     except Exception as e:
         print(f"Error running ffprobe for {path}: {e}")
         return {}
+
 
 def gather_metadata(p):
     m = int(p.stat().st_mtime)
@@ -118,7 +133,7 @@ def gather_metadata(p):
         tags.get("title"),
         tags.get("trackno"),
         tags.get("year"),
-        fmt_json
+        fmt_json,
     )
     # Also parse format data for the formats and flac_tags tables
     try:
@@ -134,7 +149,7 @@ def gather_metadata(p):
             fmt_data.get("duration"),
             fmt_data.get("size"),
             fmt_data.get("bit_rate"),
-            fmt_data.get("probe_score")
+            fmt_data.get("probe_score"),
         )
         tag_items = []
         for key, val in fmt_data.get("tags", {}).items():
@@ -143,6 +158,7 @@ def gather_metadata(p):
         formats_row = None
         tag_items = []
     return (row, formats_row, tag_items)
+
 
 def refresh_library(db_path, library_dir):
     """Refresh the FLAC library index with periodic progress updates and safe abort handling."""
@@ -196,19 +212,19 @@ def refresh_library(db_path, library_dir):
         for row, formats_row, tag_items in results:
             cur.execute(
                 "REPLACE INTO flacs (path,norm,mtime,artist,album,title,trackno,year,format_json) VALUES (?,?,?,?,?,?,?,?,?)",
-                row
+                row,
             )
             updated_files += 1
             if formats_row:
                 cur.execute(
                     "REPLACE INTO formats (path, nb_streams, nb_programs, nb_stream_groups, format_name, format_long_name, start_time, duration, size, bit_rate, probe_score) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    formats_row
+                    formats_row,
                 )
             cur.execute("DELETE FROM flac_tags WHERE path=?", (row[0],))
             for tag in tag_items:
                 cur.execute(
                     "INSERT INTO flac_tags (path, tag_key, tag_value) VALUES (?,?,?)",
-                    tag
+                    tag,
                 )
         conn.commit()
         print(f"Updated {updated_files} files in the database.")
@@ -218,6 +234,7 @@ def refresh_library(db_path, library_dir):
         conn.commit()
     finally:
         conn.close()
+
 
 def list_entries(db_path, limit=None, where=None):
     """List entries in the database."""
@@ -232,6 +249,7 @@ def list_entries(db_path, limit=None, where=None):
         print(" | ".join(str(x) if x else "" for x in row))
     conn.close()
 
+
 def show_entry(db_path, path):
     """Show a single entry from the database."""
     conn = sqlite3.connect(db_path)
@@ -244,29 +262,56 @@ def show_entry(db_path, path):
     else:
         print(f"No entry found for {path}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="FLAC Cataloguing Tool")
     subparsers = parser.add_subparsers(dest="command")
 
     # Resample command
-    resample_parser = subparsers.add_parser("resample", help="Batch resample problematic sample rates")
-    resample_parser.add_argument("--db", default=str(Path.home() / ".flac_index.db"), help="Path to SQLite database")
-    resample_parser.add_argument("--dry-run", action="store_true", help="Show what would be done without modifying files")
+    resample_parser = subparsers.add_parser(
+        "resample", help="Batch resample problematic sample rates"
+    )
+    resample_parser.add_argument(
+        "--db",
+        default=str(Path.home() / ".flac_index.db"),
+        help="Path to SQLite database",
+    )
+    resample_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without modifying files",
+    )
 
     # Refresh command
-    refresh_parser = subparsers.add_parser("refresh", help="Refresh the FLAC library index")
-    refresh_parser.add_argument("--db", default=str(Path.home() / ".flac_index.db"), help="Path to SQLite database")
-    refresh_parser.add_argument("--library", default="/Volumes/sad/MUSIC2", help="Path to FLAC library")
+    refresh_parser = subparsers.add_parser(
+        "refresh", help="Refresh the FLAC library index"
+    )
+    refresh_parser.add_argument(
+        "--db",
+        default=str(Path.home() / ".flac_index.db"),
+        help="Path to SQLite database",
+    )
+    refresh_parser.add_argument(
+        "--library", default="/Volumes/sad/MUSIC2", help="Path to FLAC library"
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List entries in the database")
-    list_parser.add_argument("--db", default=str(Path.home() / ".flac_index.db"), help="Path to SQLite database")
+    list_parser.add_argument(
+        "--db",
+        default=str(Path.home() / ".flac_index.db"),
+        help="Path to SQLite database",
+    )
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
     list_parser.add_argument("--where", help="SQL WHERE clause to filter results")
 
     # Show command
     show_parser = subparsers.add_parser("show", help="Show details for a single entry")
-    show_parser.add_argument("--db", default=str(Path.home() / ".flac_index.db"), help="Path to SQLite database")
+    show_parser.add_argument(
+        "--db",
+        default=str(Path.home() / ".flac_index.db"),
+        help="Path to SQLite database",
+    )
     show_parser.add_argument("path", help="Path to the FLAC file")
 
     args = parser.parse_args()
@@ -279,6 +324,7 @@ def main():
         show_entry(args.db, args.path)
     elif args.command == "resample":
         batch_resample(args.db, args.dry_run)
+
 
 if __name__ == "__main__":
     main()

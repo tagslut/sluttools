@@ -36,7 +36,7 @@ from mutagen._file import File as MutagenFile  # For audio metadata
 ################################################################################
 
 console = Console()
-file_handler = RotatingFileHandler("script.log", maxBytes=1024*1024, backupCount=5)
+file_handler = RotatingFileHandler("script.log", maxBytes=1024 * 1024, backupCount=5)
 logging.getLogger().addHandler(file_handler)
 
 FLAC_LIBRARY_DIR = "/Volumes/sad/MUSIC2"
@@ -57,6 +57,7 @@ SKIP_DB_PATH = Path.home() / ".config/qobuz-dl/qobuz_dl.db"
 # SAFE INPUT HELPERS
 ################################################################################
 
+
 def safe_prompt(prompt_text, default=None):
     try:
         if default is not None:
@@ -73,23 +74,32 @@ def safe_prompt(prompt_text, default=None):
             console.print(f"[yellow]Using default: {default}[/yellow]")
             return default
         else:
-            console.print("[red]No default value available. Please run this script in an interactive terminal.[/red]")
+            console.print(
+                "[red]No default value available. Please run this script in an interactive terminal.[/red]"
+            )
             sys.exit(1)
     except KeyboardInterrupt:
-        console.print("[bold red]Process interrupted by user (Ctrl+C). Exiting...[/bold red]")
+        console.print(
+            "[bold red]Process interrupted by user (Ctrl+C). Exiting...[/bold red]"
+        )
         sys.exit(0)
+
 
 def safe_confirm(prompt_text, default=True):
     default_str = "y" if default else "n"
-    answer = Prompt.ask(prompt_text + " (y/n) [or type 'abort' to exit]", default=default_str)
+    answer = Prompt.ask(
+        prompt_text + " (y/n) [or type 'abort' to exit]", default=default_str
+    )
     if answer.strip().lower() == "abort":
         console.print("[bold red]Process aborted by user.[/bold red]")
         sys.exit(0)
     return answer.strip().lower() in ["y", "yes"]
 
+
 ################################################################################
 # DESIGN RENDERER – EXACT LAYOUT
 ################################################################################
+
 
 def render_design_box(offset: int) -> Text:
     """
@@ -157,9 +167,11 @@ def render_design_box(offset: int) -> Text:
     box.append(bottom_line)
     return box
 
+
 ################################################################################
 # ANIMATED TITLE WITH BLINKING ENTER PROMPT
 ################################################################################
+
 
 class PlaylistUI:
     def __init__(self):
@@ -175,7 +187,9 @@ class PlaylistUI:
         start_time = asyncio.get_event_loop().time()
         # Wait for user input in a background thread.
         enter_future = asyncio.get_event_loop().run_in_executor(None, input, "")
-        with Live(console=self.console, refresh_per_second=int(1/refresh_rate)) as live:
+        with Live(
+            console=self.console, refresh_per_second=int(1 / refresh_rate)
+        ) as live:
             while True:
                 elapsed = asyncio.get_event_loop().time() - start_time
                 offset = int(elapsed * 2)  # adjust speed of color shift as needed
@@ -201,14 +215,20 @@ class PlaylistUI:
                     break
                 await asyncio.sleep(refresh_rate)
 
+
 ################################################################################
 # FUZZY MATCHING, SCANNING, & M3U GENERATION (UNCHANGED)
 ################################################################################
 
+
 def normalize_string(s: str) -> str:
-    s = "".join(c for c in unicodedata.normalize("NFD", s.lower())
-                if unicodedata.category(c) != "Mn")
+    s = "".join(
+        c
+        for c in unicodedata.normalize("NFD", s.lower())
+        if unicodedata.category(c) != "Mn"
+    )
     return re.sub(r"[^\w\s]+", " ", s).strip()
+
 
 def combined_fuzzy_ratio(a, b):
     a_norm = normalize_string(a)
@@ -218,6 +238,7 @@ def combined_fuzzy_ratio(a, b):
     score3 = fuzz.token_set_ratio(a_norm, b_norm)
     return max(score1, score2, score3)
 
+
 def combined_fuzzy_ratio_prenormalized(a_norm, b_norm):
     """Version that works with already normalized strings"""
     score1 = fuzz.ratio(a_norm, b_norm)
@@ -225,8 +246,10 @@ def combined_fuzzy_ratio_prenormalized(a_norm, b_norm):
     score3 = fuzz.token_set_ratio(a_norm, b_norm)
     return max(score1, score2, score3)
 
+
 def find_all_flacs(library_dir):
     return glob.glob(os.path.join(library_dir, "**", "*.flac"), recursive=True)
+
 
 def read_audio_metadata(path: str) -> Dict[str, str]:
     meta: Dict[str, str] = {}
@@ -273,7 +296,7 @@ def read_audio_metadata(path: str) -> Dict[str, str]:
 
     except Exception as e:
         # Only print error if in verbose mode
-        if os.environ.get('DEBUG'):
+        if os.environ.get("DEBUG"):
             console.print(f"[red]Error reading metadata for {path}: {e}[/red]")
 
     # Use filename as a last resort
@@ -282,12 +305,12 @@ def read_audio_metadata(path: str) -> Dict[str, str]:
 
     return meta
 
+
 PATTERN_FULL = re.compile(
     r"^(?P<artist>.*?) - \((?P<year>\d{4})\) (?P<album>.*?) - (?P<disc>\d{2})-(?P<track>\d{2})\.\s(?P<title>.*)\.(?P<ext>\w+)$"
 )
-PATTERN_SINGLE = re.compile(
-    r"^(?P<track>\d{2})\.\s(?P<title>.*)\.(?P<ext>\w+)$"
-)
+PATTERN_SINGLE = re.compile(r"^(?P<track>\d{2})\.\s(?P<title>.*)\.(?P<ext>\w+)$")
+
 
 def scan_audio_directory(dir_path):
     exts = [".mp3", ".flac", ".wav", ".m4a", ".aac"]
@@ -324,10 +347,11 @@ def scan_audio_directory(dir_path):
             "title": embed.get("title", "Unknown Title"),
             "track": embed.get("track", "00"),
             "year": embed.get("year", "Unknown Year"),
-            "path": f
+            "path": f,
         }
         results.append(final)
     return results
+
 
 async def parse_m3u_file(file_path):
     tracks = []
@@ -347,14 +371,16 @@ async def parse_m3u_file(file_path):
                                 if os.path.exists(line):
                                     metadata = read_audio_metadata(line)
                                     # Use the actual file path as the search target since we want exact matches
-                                    tracks.append({
-                                        "artist": metadata.get("artist", ""),
-                                        "album": metadata.get("album", ""),
-                                        "track": metadata.get("track", ""),
-                                        "title": metadata.get("title", ""),
-                                        "path": line,  # Store the original path
-                                        "exact_match": line  # Mark this for exact matching
-                                    })
+                                    tracks.append(
+                                        {
+                                            "artist": metadata.get("artist", ""),
+                                            "album": metadata.get("album", ""),
+                                            "track": metadata.get("track", ""),
+                                            "title": metadata.get("title", ""),
+                                            "path": line,  # Store the original path
+                                            "exact_match": line,  # Mark this for exact matching
+                                        }
+                                    )
                                 else:
                                     # File doesn't exist, try to parse from filename
                                     basename = os.path.basename(line)
@@ -362,22 +388,42 @@ async def parse_m3u_file(file_path):
                                     m1 = PATTERN_FULL.match(basename)
                                     if m1:
                                         gd = m1.groupdict()
-                                        tracks.append({
-                                            "artist": gd["artist"],
-                                            "album": gd["album"],
-                                            "track": gd["track"],
-                                            "title": gd["title"],
-                                            "path": line
-                                        })
+                                        tracks.append(
+                                            {
+                                                "artist": gd["artist"],
+                                                "album": gd["album"],
+                                                "track": gd["track"],
+                                                "title": gd["title"],
+                                                "path": line,
+                                            }
+                                        )
                                     else:
                                         # Fallback to using the full line as track name
-                                        tracks.append({"artist": "", "album": "", "track": line, "title": "", "path": line})
+                                        tracks.append(
+                                            {
+                                                "artist": "",
+                                                "album": "",
+                                                "track": line,
+                                                "title": "",
+                                                "path": line,
+                                            }
+                                        )
                             except Exception as e:
                                 # If metadata extraction fails, use the full line as track name
-                                tracks.append({"artist": "", "album": "", "track": line, "title": "", "path": line})
+                                tracks.append(
+                                    {
+                                        "artist": "",
+                                        "album": "",
+                                        "track": line,
+                                        "title": "",
+                                        "path": line,
+                                    }
+                                )
                         else:
                             # This is just a track name - use empty strings for missing metadata
-                            tracks.append({"artist": "", "album": "", "track": line, "title": ""})
+                            tracks.append(
+                                {"artist": "", "album": "", "track": line, "title": ""}
+                            )
             nm = os.path.splitext(os.path.basename(file_path))[0]
             return nm, tracks
         except UnicodeDecodeError:
@@ -385,6 +431,7 @@ async def parse_m3u_file(file_path):
         except Exception as e2:
             console.print(f"[red]Error reading M3U: {e2}[/red]")
     return os.path.splitext(os.path.basename(file_path))[0], tracks
+
 
 async def parse_json_file(file_path):
     try:
@@ -401,17 +448,22 @@ async def parse_json_file(file_path):
                 title = r.get("title", "") or r.get("track", "")
                 track = r.get("track", "") or r.get("title", "")
 
-                out.append({
-                    "artist": r.get("artist", ""),
-                    "album": r.get("album", ""),
-                    "track": track,
-                    "title": title,
-                    "isrc": r.get("isrc", "")  # Add ISRC support for JSON files too
-                })
+                out.append(
+                    {
+                        "artist": r.get("artist", ""),
+                        "album": r.get("album", ""),
+                        "track": track,
+                        "title": title,
+                        "isrc": r.get(
+                            "isrc", ""
+                        ),  # Add ISRC support for JSON files too
+                    }
+                )
             return nm, out
     except Exception as ex:
         console.print(f"[red]Error reading JSON: {ex}[/red]")
     return os.path.splitext(os.path.basename(file_path))[0], []
+
 
 async def parse_csv_file(file_path):
     out = []
@@ -429,8 +481,10 @@ async def parse_csv_file(file_path):
                     "title": row.get("title", ""),
                     "artist": row.get("artist", ""),
                     "album": row.get("album", ""),
-                    "track": row.get("track", row.get("title", "")),  # Use title as fallback for track
-                    "isrc": row.get("isrc", "")  # Add ISRC support
+                    "track": row.get(
+                        "track", row.get("title", "")
+                    ),  # Use title as fallback for track
+                    "isrc": row.get("isrc", ""),  # Add ISRC support
                 }
                 out.append(entry)
         nm = os.path.splitext(os.path.basename(file_path))[0]
@@ -438,6 +492,7 @@ async def parse_csv_file(file_path):
     except Exception as e2:
         console.print(f"[red]Error reading CSV: {e2}[/red]")
     return os.path.splitext(os.path.basename(file_path))[0], []
+
 
 async def parse_xlsx_file(file_path):
     out = []
@@ -448,11 +503,14 @@ async def parse_xlsx_file(file_path):
             t = row.get("track", row.get("title", ""))
             a = row.get("artist", "")
             al = row.get("album", "")
-            out.append({"track": t, "artist": a, "album": al, "title": row.get("title", "")})
+            out.append(
+                {"track": t, "artist": a, "album": al, "title": row.get("title", "")}
+            )
         return nm, out
     except Exception as e2:
         console.print(f"[red]Error reading XLSX: {e2}[/red]")
     return os.path.splitext(os.path.basename(file_path))[0], []
+
 
 async def parse_playlist_file(file_path):
     ext = file_path.lower().split(".")[-1]
@@ -468,6 +526,7 @@ async def parse_playlist_file(file_path):
         console.print("[bold red]Unsupported playlist format.[/bold red]")
         return os.path.splitext(os.path.basename(file_path))[0], []
 
+
 def build_search_string(entry):
     parts = []
     for k in ["artist", "album", "track", "title", "isrc"]:
@@ -475,6 +534,7 @@ def build_search_string(entry):
         if val:
             parts.append(val)
     return " ".join(parts).strip()
+
 
 def interactive_manual_select(search_str, flac_candidates):
     # Sort candidates by ratio (descending)
@@ -486,15 +546,19 @@ def interactive_manual_select(search_str, flac_candidates):
     for i, (pth, rat) in enumerate(top5, 1):
         # Get metadata to display more info
         meta = read_audio_metadata(pth)
-        title = meta.get('title', os.path.basename(pth))
-        artist = meta.get('artist', 'Unknown')
-        album = meta.get('album', 'Unknown')
+        title = meta.get("title", os.path.basename(pth))
+        artist = meta.get("artist", "Unknown")
+        album = meta.get("album", "Unknown")
 
         # Display enhanced candidate information with ratio and metadata
-        console.print(f"  [cyan]{i})[/cyan] [bold]Match {int(rat)}%[/bold] - {title} - {artist} ({album})")
+        console.print(
+            f"  [cyan]{i})[/cyan] [bold]Match {int(rat)}%[/bold] - {title} - {artist} ({album})"
+        )
         console.print(f"     {pth}")
 
-    console.print("\n[bold yellow]Enter a number [1-5], 's' to skip, 'q' to quit matching, or 'm' for manual path:[/bold yellow]")
+    console.print(
+        "\n[bold yellow]Enter a number [1-5], 's' to skip, 'q' to quit matching, or 'm' for manual path:[/bold yellow]"
+    )
     while True:
         ans = safe_prompt("Choice")
         if ans in ["q", "quit"]:
@@ -516,26 +580,28 @@ def interactive_manual_select(search_str, flac_candidates):
         except:
             console.print("[red]Invalid choice[/red]")
 
+
 @lru_cache(maxsize=1024)
 def combined_fuzzy_ratio_cached(a: str, b: str) -> int:
     """Cached version of combined_fuzzy_ratio for better performance with pre-normalized strings"""
     return combined_fuzzy_ratio_prenormalized(a, b)
+
 
 def match_entry(
     entry: Dict[str, str],
     flac_lookup: List[Tuple[str, str]],
     artist_index: Optional[Dict[str, Set[str]]] = None,
     title_index: Optional[Dict[str, Set[str]]] = None,
-    playlist_size: int = 100
+    playlist_size: int = 100,
 ) -> Optional[str]:
     """Finds the best FLAC match for a playlist entry using pre-normalized lookup and indexes."""
-    
+
     # Check for exact match first (for M3U files with file paths)
     if "exact_match" in entry:
         exact_path = entry["exact_match"]
         if os.path.exists(exact_path) and exact_path.lower().endswith(".flac"):
             return exact_path
-    
+
     ss = build_search_string(entry)
     if not ss:
         return None
@@ -546,8 +612,8 @@ def match_entry(
     # Use indexes for faster matching if available
     candidate_paths = None
     if artist_index and title_index:
-        artist = normalize_string(entry.get('artist', ''))
-        title = normalize_string(entry.get('title', ''))
+        artist = normalize_string(entry.get("artist", ""))
+        title = normalize_string(entry.get("title", ""))
 
         # Get potential candidates from the indexes
         artist_candidates = set()
@@ -591,16 +657,18 @@ def match_entry(
         if playlist_size <= 50:
             # Extract search terms for targeted matching
             search_terms = [
-                normalize_string(entry.get('artist', '')),
-                normalize_string(entry.get('title', '')),
-                normalize_string(entry.get('album', ''))
+                normalize_string(entry.get("artist", "")),
+                normalize_string(entry.get("title", "")),
+                normalize_string(entry.get("album", "")),
             ]
             search_terms = [term for term in search_terms if term]  # Remove empty terms
-            
+
             # If we have no search terms, fall back to limited sampling
             if not search_terms:
                 search_limit = min(1000, len(flac_lookup))
-                for i, (orig_path, norm_basename) in enumerate(flac_lookup[:search_limit]):
+                for i, (orig_path, norm_basename) in enumerate(
+                    flac_lookup[:search_limit]
+                ):
                     r = combined_fuzzy_ratio_cached(ss_norm, norm_basename)
                     if r >= AUTO_MATCH_THRESHOLD:
                         return orig_path
@@ -616,11 +684,11 @@ def match_entry(
                             return orig_path
                         results.append((orig_path, r))
                         matches_found += 1
-                        
+
                         # Limit the number of matches we check for small playlists
                         if matches_found > 500:  # Process at most 500 potential matches
                             break
-                            
+
                 # If we found very few matches, do a broader search with sampling
                 if matches_found < 10:
                     sample_size = min(2000, len(flac_lookup))
@@ -634,14 +702,16 @@ def match_entry(
         else:
             # For larger playlists, search all files (original behavior)
             search_limit = len(flac_lookup)
-            
+
             # Iterate through (original_path, normalized_basename) tuples
             for i, (orig_path, norm_basename) in enumerate(flac_lookup[:search_limit]):
                 # Compare normalized search string with pre-normalized basename
                 r = combined_fuzzy_ratio_cached(ss_norm, norm_basename)
-                results.append((orig_path, r)) # Store original path with ratio
+                results.append((orig_path, r))  # Store original path with ratio
 
-    if not results: # Handle case where flac_lookup might be empty or no ratios calculated
+    if (
+        not results
+    ):  # Handle case where flac_lookup might be empty or no ratios calculated
         return None
 
     # Sort by ratio (descending)
@@ -654,6 +724,7 @@ def match_entry(
     else:
         return None
 
+
 async def create_m3u_file(out_path, matched_paths):
     if not out_path.lower().endswith(".m3u"):
         out_path += ".m3u"
@@ -665,6 +736,7 @@ async def create_m3u_file(out_path, matched_paths):
         console.print(f"[bold green]Created M3U: {out_path}[/bold green]")
     except Exception as e2:
         console.print(f"[red]Error writing M3U: {e2}[/red]")
+
 
 async def create_csv_file(out_path, entries, matched_paths):
     if not out_path.lower().endswith(".csv"):
@@ -679,21 +751,26 @@ async def create_csv_file(out_path, entries, matched_paths):
             for i, path in enumerate(matched_paths):
                 if i < len(entries):
                     entry = entries[i]
-                    writer.writerow([
-                        entry.get("title", ""),
-                        entry.get("artist", ""),
-                        entry.get("album", ""),
-                        entry.get("isrc", ""),
-                        path
-                    ])
+                    writer.writerow(
+                        [
+                            entry.get("title", ""),
+                            entry.get("artist", ""),
+                            entry.get("album", ""),
+                            entry.get("isrc", ""),
+                            path,
+                        ]
+                    )
         console.print(f"[bold green]Created CSV: {out_path}[/bold green]")
     except Exception as e:
         console.print(f"[red]Error writing CSV: {e}[/red]")
 
+
 # -------------------------------------------------
 # SongShift JSON Export
 # -------------------------------------------------
-def export_songshift_json_from_entries(entries, matched, output_json, playlist_name="Unmatched Tracks"):
+def export_songshift_json_from_entries(
+    entries, matched, output_json, playlist_name="Unmatched Tracks"
+):
     """Exports unmatched tracks to SongShift-ready JSON format."""
     tracks = []
     for i, m in enumerate(matched):
@@ -703,20 +780,21 @@ def export_songshift_json_from_entries(entries, matched, output_json, playlist_n
             artist = e.get("artist") or "Unknown Artist"
             tracks.append({"artist": artist.strip(), "track": title.strip()})
 
-    payload = [{
-        "service": "qobuz",
-        "serviceId": None,
-        "name": playlist_name,
-        "tracks": tracks
-    }]
+    payload = [
+        {"service": "qobuz", "serviceId": None, "name": playlist_name, "tracks": tracks}
+    ]
 
     with open(output_json, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
-    console.print(f"[bold green]✓ JSON playlist saved → {output_json} ({len(tracks)} tracks)[/bold green]")
+    console.print(
+        f"[bold green]✓ JSON playlist saved → {output_json} ({len(tracks)} tracks)[/bold green]"
+    )
+
 
 ################################################################################
 # DATABASE FUNCTIONS
 ################################################################################
+
 
 def open_db():
     """Opens and initializes the SQLite database connection."""
@@ -752,6 +830,7 @@ def open_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_album ON flacs(album)")
     return conn
 
+
 def refresh_library(library_dir):
     """Refreshes the FLAC library database."""
     conn = open_db()
@@ -769,7 +848,9 @@ def refresh_library(library_dir):
     def process_file(p):
         # Create a new connection for each thread
         thread_conn = sqlite3.connect(DB_PATH)
-        thread_conn.execute("PRAGMA busy_timeout = 3000")  # Wait up to 3 seconds if locked
+        thread_conn.execute(
+            "PRAGMA busy_timeout = 3000"
+        )  # Wait up to 3 seconds if locked
         thread_cur = thread_conn.cursor()
 
         m = int(os.path.getmtime(p))
@@ -789,13 +870,15 @@ def refresh_library(library_dir):
         fmt_json = json.dumps(fmt) if fmt else None
 
         values = (
-            p, norm, m,
+            p,
+            norm,
+            m,
             tags.get("artist"),
             tags.get("album"),
             tags.get("title"),
             tags.get("trackno"),
             tags.get("year"),
-            fmt_json
+            fmt_json,
         )
 
         # Retry logic for database locked
@@ -808,7 +891,7 @@ def refresh_library(library_dir):
                             path, norm, mtime, artist, album, title, trackno, year, format_json
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        values
+                        values,
                     )
                 else:
                     thread_cur.execute(
@@ -817,12 +900,12 @@ def refresh_library(library_dir):
                             path, norm, mtime, artist, album, title, trackno, year, format_json
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        values
+                        values,
                     )
                 thread_conn.commit()
                 break  # Success
             except sqlite3.OperationalError as e:
-                if 'database is locked' in str(e):
+                if "database is locked" in str(e):
                     time.sleep(0.2 * (attempt + 1))  # Exponential backoff
                 else:
                     raise
@@ -830,9 +913,17 @@ def refresh_library(library_dir):
 
     # Parallelize file processing
     with ThreadPoolExecutor(max_workers=8) as executor:
-        list(tqdm(executor.map(process_file, files), total=len(files), desc="Scanning FLACs", unit="file"))
+        list(
+            tqdm(
+                executor.map(process_file, files),
+                total=len(files),
+                desc="Scanning FLACs",
+                unit="file",
+            )
+        )
 
     conn.close()
+
 
 def get_format_json(path):
     """Extract format information using ffprobe."""
@@ -843,40 +934,53 @@ def get_format_json(path):
             text=True,
         )
         if result.returncode != 0:
-            console.print(f"[yellow]Warning: ffprobe failed for {path}. Skipping file.[/yellow]")
+            console.print(
+                f"[yellow]Warning: ffprobe failed for {path}. Skipping file.[/yellow]"
+            )
             return {}
         return json.loads(result.stdout).get("format", {})
     except json.JSONDecodeError as e:
-        console.print(f"[yellow]Warning: Invalid JSON from ffprobe for {path}. Skipping file.[/yellow]")
+        console.print(
+            f"[yellow]Warning: Invalid JSON from ffprobe for {path}. Skipping file.[/yellow]"
+        )
         return {}
     except Exception as e:
         console.print(f"[red]Error running ffprobe for {path}: {e}[/red]")
         return {}
 
+
 ################################################################################
 # MAIN FUNCTION
 ################################################################################
 
+
 async def main():
     # Check for command line arguments
     import sys
+
     if len(sys.argv) > 1:
         path_in = sys.argv[1].strip().strip("'\"")
         # Skip the UI animation if run with command line args
         console.print(f"[cyan]Processing: {path_in}[/cyan]")
     else:
-        os.system('clear')
+        os.system("clear")
         console.clear()
 
         # 1) Run animated title with custom box and blinking ENTER prompt.
         ui = PlaylistUI()
         await ui.animate_title(refresh_rate=0.2, wait_time=4.0)
 
-        os.system('clear')
+        os.system("clear")
         console.clear()
 
-        path_in = safe_prompt("[bold yellow]Enter a path (folder or playlist file)[/bold yellow]").strip().strip("'\"")
-    
+        path_in = (
+            safe_prompt(
+                "[bold yellow]Enter a path (folder or playlist file)[/bold yellow]"
+            )
+            .strip()
+            .strip("'\"")
+        )
+
     if not os.path.exists(path_in):
         console.print(f"[red]Invalid path: {path_in}[/red]")
         return
@@ -904,7 +1008,9 @@ async def main():
 
     console.print(f"[cyan]Scanning {FLAC_LIBRARY_DIR} for .flac...[/cyan]")
     all_flacs = find_all_flacs(FLAC_LIBRARY_DIR)
-    console.print(f"[green]Found {len(all_flacs)} flac files in {FLAC_LIBRARY_DIR}[/green]")
+    console.print(
+        f"[green]Found {len(all_flacs)} flac files in {FLAC_LIBRARY_DIR}[/green]"
+    )
 
     # Start timing for performance measurement
     start_time = time.time()
@@ -914,12 +1020,16 @@ async def main():
     console.print("1) Basic - Just normalize filenames")
     console.print("2) Advanced - Use search indexes for faster matching (recommended)")
     console.print("3) Turbo - Use parallel processing with multiple threads (fastest)")
-    console.print("4) Safe Turbo - Parallel processing without metadata indexing (best for problematic files)")
+    console.print(
+        "4) Safe Turbo - Parallel processing without metadata indexing (best for problematic files)"
+    )
     console.print("5) Quick Match - Fast mode for small playlists (no indexing)")
 
     # Auto-select Quick Match for small playlists
     if len(entries) <= 50:
-        console.print(f"[cyan]Auto-selecting Quick Match mode for {len(entries)} tracks[/cyan]")
+        console.print(
+            f"[cyan]Auto-selecting Quick Match mode for {len(entries)} tracks[/cyan]"
+        )
         opt_choice = "5"
     else:
         opt_choice = safe_prompt("Optimization level [1-5]", default="3")
@@ -931,7 +1041,7 @@ async def main():
     if cache_file.exists() and time.time() - cache_file.stat().st_mtime < CACHE_TTL:
         console.print("[cyan]Loading cached FLAC normalization...[/cyan]")
         try:
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cached_data = json.load(f)
                 # Verify cache is still valid (same files)
                 if len(cached_data) == len(all_flacs):
@@ -947,13 +1057,15 @@ async def main():
     if not flac_lookup:
         console.print("[cyan]Normalizing FLAC filenames for matching...[/cyan]")
         with console.status("[green]Normalizing...", spinner="dots12"):
-            flac_lookup = [(f, normalize_string(os.path.basename(f))) for f in all_flacs]
+            flac_lookup = [
+                (f, normalize_string(os.path.basename(f))) for f in all_flacs
+            ]
 
         # Save to cache
         console.print("[cyan]Saving normalization cache...[/cyan]")
         try:
             cache_data = [{"path": path, "norm": norm} for path, norm in flac_lookup]
-            with open(cache_file, 'w') as f:
+            with open(cache_file, "w") as f:
                 json.dump(cache_data, f)
         except Exception as e:
             console.print(f"[yellow]Cache save failed: {e}[/yellow]")
@@ -961,7 +1073,9 @@ async def main():
         console.print("[green]Normalization complete.[/green]")
 
     # Debug: Show sample FLAC files for verification (condensed)
-    console.print(f"[cyan]Loaded FLAC cache with {len(flac_lookup)} normalized entries[/cyan]")
+    console.print(
+        f"[cyan]Loaded FLAC cache with {len(flac_lookup)} normalized entries[/cyan]"
+    )
 
     # Create additional indexes for advanced matching
     artist_index = None
@@ -969,27 +1083,38 @@ async def main():
 
     # Skip indexing for Quick Match mode
     if opt_choice == "5":
-        console.print("[yellow]Quick Match mode: Skipping indexing for faster processing[/yellow]")
+        console.print(
+            "[yellow]Quick Match mode: Skipping indexing for faster processing[/yellow]"
+        )
     else:
         # Only build indexes if we have many tracks to match or many FLAC files
-        should_index = (
-            opt_choice in ["2", "3"] and
-            (len(entries) > 50 or len(all_flacs) > 10000)
+        should_index = opt_choice in ["2", "3"] and (
+            len(entries) > 50 or len(all_flacs) > 10000
         )
 
         if should_index:
-            console.print(f"[yellow]Building indexes for {len(all_flacs)} FLAC files...[/yellow]")
+            console.print(
+                f"[yellow]Building indexes for {len(all_flacs)} FLAC files...[/yellow]"
+            )
             try:
-                artist_index, title_index = build_search_indexes(all_flacs, max_files=5000)
+                artist_index, title_index = build_search_indexes(
+                    all_flacs, max_files=5000
+                )
             except Exception as e:
                 console.print(f"[bold red]Error building indexes: {e}[/bold red]")
-                console.print("[yellow]Falling back to basic mode without indexes[/yellow]")
+                console.print(
+                    "[yellow]Falling back to basic mode without indexes[/yellow]"
+                )
                 artist_index = None
                 title_index = None
         else:
-            console.print(f"[yellow]Skipping indexing (only {len(entries)} tracks to match)[/yellow]")
+            console.print(
+                f"[yellow]Skipping indexing (only {len(entries)} tracks to match)[/yellow]"
+            )
 
-    matched: List[Optional[str]] = [None] * len(entries)  # List that will contain file paths (str) or None
+    matched: List[Optional[str]] = [None] * len(
+        entries
+    )  # List that will contain file paths (str) or None
     unmatched_indices: List[int] = []
     total_entries = len(entries)
     console.print(f"[cyan]Attempting to match {total_entries} entries...[/cyan]")
@@ -1001,8 +1126,12 @@ async def main():
         # Define a worker function for parallel processing
         def match_worker(idx_entry):
             idx, entry = idx_entry
-            track_info = f"{entry.get('title', 'Unknown')} - {entry.get('artist', 'Unknown')}"
-            result = match_entry(entry, flac_lookup, artist_index, title_index, len(entries))
+            track_info = (
+                f"{entry.get('title', 'Unknown')} - {entry.get('artist', 'Unknown')}"
+            )
+            result = match_entry(
+                entry, flac_lookup, artist_index, title_index, len(entries)
+            )
             return idx, result, track_info
 
         # Prepare items for parallel processing
@@ -1019,11 +1148,17 @@ async def main():
             futures = {executor.submit(match_worker, item): item for item in items}
 
             # Create a progress display
-            with console.status(f"[green]Matching in parallel with {max_workers} workers...", spinner="dots12"):
+            with console.status(
+                f"[green]Matching in parallel with {max_workers} workers...",
+                spinner="dots12",
+            ):
                 # Process results as they complete
                 for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
                     idx, result, track_info = future.result()
-                    console.print(f"[yellow]Matched {i}/{total_entries}: [/yellow]{track_info}", end="")
+                    console.print(
+                        f"[yellow]Matched {i}/{total_entries}: [/yellow]{track_info}",
+                        end="",
+                    )
 
                     if result:
                         matched[idx] = result
@@ -1038,17 +1173,28 @@ async def main():
         if matched_results:
             console.print("\n[bold cyan]Match details:[/bold cyan]")
             for idx, result, meta in matched_results:
-                console.print(f"[yellow]{entries[idx].get('title', 'Unknown')} - {entries[idx].get('artist', 'Unknown')}[/yellow]")
-                console.print(f"  [green]→ Title: {meta.get('title', os.path.basename(result))}[/green]")
-                console.print(f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]")
-                console.print(f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]")
+                console.print(
+                    f"[yellow]{entries[idx].get('title', 'Unknown')} - {entries[idx].get('artist', 'Unknown')}[/yellow]"
+                )
+                console.print(
+                    f"  [green]→ Title: {meta.get('title', os.path.basename(result))}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]"
+                )
 
     else:
         # Sequential processing for Basic and Advanced modes
         for i, e in enumerate(entries):
             # Create a single line with track info (title - artist)
             track_info = f"{e.get('title', 'Unknown')} - {e.get('artist', 'Unknown')}"
-            console.print(f"[yellow]Matching ({i+1}/{total_entries}): [/yellow]{track_info}", end="")
+            console.print(
+                f"[yellow]Matching ({i+1}/{total_entries}): [/yellow]{track_info}",
+                end="",
+            )
 
             # Pass the pre-computed lookup table and indexes
             res = match_entry(e, flac_lookup, artist_index, title_index, len(entries))
@@ -1059,9 +1205,15 @@ async def main():
                 console.print(" [bold green]✓ MATCHED[/bold green]")
 
                 # Display match details
-                console.print(f"  [green]→ Title: {meta.get('title', os.path.basename(res))}[/green]")
-                console.print(f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]")
-                console.print(f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]")
+                console.print(
+                    f"  [green]→ Title: {meta.get('title', os.path.basename(res))}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]"
+                )
                 console.print(f"  [green]→ Path: {res}[/green]")
                 console.print()
 
@@ -1076,19 +1228,25 @@ async def main():
 
     auto_matched_count = len([x for x in matched if x])
     auto_unmatched_count = total_entries - auto_matched_count
-    console.print(f"[bold green]{auto_matched_count} automatically matched[/bold green], [bold red]{auto_unmatched_count} unmatched[/bold red]")
+    console.print(
+        f"[bold green]{auto_matched_count} automatically matched[/bold green], [bold red]{auto_unmatched_count} unmatched[/bold red]"
+    )
 
-    if auto_unmatched_count > 0 and safe_confirm("[bold yellow]Do you want to attempt manual matching on unmatched tracks?[/bold yellow]"):
+    if auto_unmatched_count > 0 and safe_confirm(
+        "[bold yellow]Do you want to attempt manual matching on unmatched tracks?[/bold yellow]"
+    ):
         manual_match_count = 0
         for idx in unmatched_indices:
             e = entries[idx]
             # Show detailed track info with title, artist, album
-            title = e.get('title', 'Unknown Title')
-            artist = e.get('artist', 'Unknown Artist')
-            album = e.get('album', 'Unknown Album')
+            title = e.get("title", "Unknown Title")
+            artist = e.get("artist", "Unknown Artist")
+            album = e.get("album", "Unknown Album")
 
             console.print("\n" + "─" * 70)
-            console.print(f"[bold cyan]Manually matching track {idx+1}/{total_entries}:[/bold cyan]")
+            console.print(
+                f"[bold cyan]Manually matching track {idx+1}/{total_entries}:[/bold cyan]"
+            )
             console.print(f"[bold]Title:[/bold] {title}")
             console.print(f"[bold]Artist:[/bold] {artist}")
             console.print(f"[bold]Album:[/bold] {album}")
@@ -1101,31 +1259,46 @@ async def main():
             # Calculate ratios against the normalized lookup for candidates
             search_str_norm = normalize_string(search_str)
             candidates = []
-            with console.status(f"[green]Calculating candidates for '{title}'...", spinner="dots12"):
-                 candidates = [(orig_path, combined_fuzzy_ratio(search_str_norm, norm_basename))
-                              for orig_path, norm_basename in flac_lookup]
+            with console.status(
+                f"[green]Calculating candidates for '{title}'...", spinner="dots12"
+            ):
+                candidates = [
+                    (orig_path, combined_fuzzy_ratio(search_str_norm, norm_basename))
+                    for orig_path, norm_basename in flac_lookup
+                ]
 
-            res = interactive_manual_select(search_str, candidates) # Pass original paths and ratios
+            res = interactive_manual_select(
+                search_str, candidates
+            )  # Pass original paths and ratios
             if res == "QUIT":
                 console.print("[yellow]User opted to quit manual matching.[/yellow]")
                 break
-            if res and res != "QUIT": # res is the selected original path or None
+            if res and res != "QUIT":  # res is the selected original path or None
                 matched[idx] = res
 
                 # Display the match details
                 meta = read_audio_metadata(res)
                 console.print(f"[bold green]✓ MATCHED with:[/bold green]")
-                console.print(f"  [green]→ Title: {meta.get('title', os.path.basename(res))}[/green]")
-                console.print(f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]")
-                console.print(f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]")
+                console.print(
+                    f"  [green]→ Title: {meta.get('title', os.path.basename(res))}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Artist: {meta.get('artist', 'Unknown Artist')}[/green]"
+                )
+                console.print(
+                    f"  [green]→ Album: {meta.get('album', 'Unknown Album')}[/green]"
+                )
                 console.print(f"  [green]→ Path: {res}[/green]")
 
                 manual_match_count += 1
-        console.print(f"[bold green]{manual_match_count} tracks manually matched.[/bold green]")
-
+        console.print(
+            f"[bold green]{manual_match_count} tracks manually matched.[/bold green]"
+        )
 
     if any(m is None for m in matched):
-        if safe_confirm("[bold yellow]Some tracks remain unmatched. Generate a log file for these tracks?[/bold yellow]"):
+        if safe_confirm(
+            "[bold yellow]Some tracks remain unmatched. Generate a log file for these tracks?[/bold yellow]"
+        ):
             log_path = f"{source_name}_unmatched.log"
             try:
                 with open(log_path, "w", encoding="utf-8") as lf:
@@ -1133,7 +1306,9 @@ async def main():
                         if m is None:
                             e = entries[i]
                             lf.write(f"Index {i+1}: {build_search_string(e)}\n")
-                console.print(f"[bold green]Unmatched log written to {log_path}[/bold green]")
+                console.print(
+                    f"[bold green]Unmatched log written to {log_path}[/bold green]"
+                )
             except Exception as e:
                 console.print(f"[red]Error writing log: {e}[/red]")
 
@@ -1161,13 +1336,17 @@ async def main():
         # M3U export
         if choice in ["1", "3"]:
             def_name_m3u = f"{source_name}_matched.m3u"
-            outp_m3u = safe_prompt("M3U filename", default=def_name_m3u).strip().strip("'\"")
+            outp_m3u = (
+                safe_prompt("M3U filename", default=def_name_m3u).strip().strip("'\"")
+            )
             await create_m3u_file(outp_m3u, final_matches)
 
         # CSV export
         if choice in ["2", "3"]:
             def_name_csv = f"{source_name}_matched.csv"
-            outp_csv = safe_prompt("CSV filename", default=def_name_csv).strip().strip("'\"")
+            outp_csv = (
+                safe_prompt("CSV filename", default=def_name_csv).strip().strip("'\"")
+            )
             await create_csv_file(outp_csv, final_entries, final_matches)
 
         if choice == "4":
@@ -1175,32 +1354,50 @@ async def main():
 
     # Export unmatched tracks as SongShift JSON if requested
     if any(m is None for m in matched):
-        if safe_confirm("[bold yellow]Export unmatched tracks as a SongShift-ready JSON playlist?[/bold yellow]"):
+        if safe_confirm(
+            "[bold yellow]Export unmatched tracks as a SongShift-ready JSON playlist?[/bold yellow]"
+        ):
             json_name = OUTPUT_DIR / f"{source_name}_songshift.json"
-            export_songshift_json_from_entries(entries, matched, json_name, playlist_name=source_name)
+            export_songshift_json_from_entries(
+                entries, matched, json_name, playlist_name=source_name
+            )
     else:
         console.print("[yellow]No matches to export.[/yellow]")
 
-    if final_matches and safe_confirm("[bold yellow]Create CSV with the current matched flacs?[/bold yellow]"):
+    if final_matches and safe_confirm(
+        "[bold yellow]Create CSV with the current matched flacs?[/bold yellow]"
+    ):
         def_name_csv = f"{source_name}_matched.csv"
-        outp_csv = safe_prompt("CSV filename", default=def_name_csv).strip().strip("'\"")
+        outp_csv = (
+            safe_prompt("CSV filename", default=def_name_csv).strip().strip("'\"")
+        )
         await create_csv_file(outp_csv, entries, final_matches)
     else:
         console.print("[yellow]Skipping CSV creation.[/yellow]")
+
 
 async def create_txt_file(out_path, unmatched_entries):
     """Creates a TXT file for unmatched entries."""
     try:
         async with aiofiles.open(out_path, "w", encoding="utf-8") as f:
             for entry in unmatched_entries:
-                title = entry.get("title") or entry.get("track") or build_search_string(entry)
+                title = (
+                    entry.get("title")
+                    or entry.get("track")
+                    or build_search_string(entry)
+                )
                 artist = entry.get("artist") or "Unknown Artist"
                 await f.write(f"{artist} - {title}\n")
-        console.print(f"[bold green]✓ TXT file saved → {out_path} ({len(unmatched_entries)} lines)[/bold green]")
+        console.print(
+            f"[bold green]✓ TXT file saved → {out_path} ({len(unmatched_entries)} lines)[/bold green]"
+        )
     except Exception as e:
         console.print(f"[red]Error writing TXT file: {e}[/red]")
 
-def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
+
+def build_search_indexes(
+    flac_files: List[str], max_files: int = 5000
+) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
     """Build artist and title indexes for faster matching"""
     artist_index: Dict[str, Set[str]] = defaultdict(set)
     title_index: Dict[str, Set[str]] = defaultdict(set)
@@ -1209,9 +1406,13 @@ def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[
     skipped_count = 0
 
     # Limit the number of files to index for performance
-    files_to_process = flac_files[:max_files] if len(flac_files) > max_files else flac_files
+    files_to_process = (
+        flac_files[:max_files] if len(flac_files) > max_files else flac_files
+    )
 
-    console.print(f"[cyan]Building search indexes for {len(files_to_process)} FLAC files (limited from {len(flac_files)})...[/cyan]")
+    console.print(
+        f"[cyan]Building search indexes for {len(files_to_process)} FLAC files (limited from {len(flac_files)})...[/cyan]"
+    )
 
     # Use tqdm for better progress reporting
     with tqdm(total=len(files_to_process), desc="Indexing files", unit="file") as pbar:
@@ -1233,7 +1434,7 @@ def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[
                             "album": gd["album"],
                             "title": gd["title"],
                             "year": gd["year"],
-                            "track": gd["track"]
+                            "track": gd["track"],
                         }
                     else:
                         skipped_count += 1
@@ -1241,8 +1442,8 @@ def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[
                         continue  # Skip this file if we can't get metadata
 
                 # Index artist information
-                if 'artist' in meta and meta['artist']:
-                    artist_norm = normalize_string(meta['artist'])
+                if "artist" in meta and meta["artist"]:
+                    artist_norm = normalize_string(meta["artist"])
                     words = artist_norm.split()
                     # Index by full artist name and individual words
                     artist_index[artist_norm].add(f)
@@ -1251,8 +1452,8 @@ def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[
                             artist_index[word].add(f)
 
                 # Index title information
-                if 'title' in meta and meta['title']:
-                    title_norm = normalize_string(meta['title'])
+                if "title" in meta and meta["title"]:
+                    title_norm = normalize_string(meta["title"])
                     words = title_norm.split()
                     # Index by full title and individual words
                     title_index[title_norm].add(f)
@@ -1269,11 +1470,16 @@ def build_search_indexes(flac_files: List[str], max_files: int = 5000) -> Tuple[
 
             pbar.update(1)
 
-    console.print(f"[green]Indexing complete. Created {len(artist_index)} artist and {len(title_index)} title entries.[/green]")
+    console.print(
+        f"[green]Indexing complete. Created {len(artist_index)} artist and {len(title_index)} title entries.[/green]"
+    )
     if error_count > 0:
-        console.print(f"[yellow]Note: {error_count} files had metadata read errors, {skipped_count} files were skipped.[/yellow]")
+        console.print(
+            f"[yellow]Note: {error_count} files had metadata read errors, {skipped_count} files were skipped.[/yellow]"
+        )
     console.print(f"[green]Successfully indexed {indexed_count} files.[/green]")
     return artist_index, title_index
+
 
 if __name__ == "__main__":
     try:

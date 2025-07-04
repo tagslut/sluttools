@@ -457,6 +457,7 @@ class PluginManager:
         return False
 '''
 
+
 def write_example_files(base_path: str):
     """Write example integration files to specified path."""
     examples_dir = Path(base_path) / "flaccid_integration_examples"

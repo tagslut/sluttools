@@ -26,12 +26,12 @@ setup(
         "rapidfuzz",
     ],
     entry_points={
-        'console_scripts': [
-            'musictools=music_automation.cli.main:main',
-            'playlist-matcher=music_automation.core.matcher:main',
-            'flac-database=music_automation.core.database:main',
-            'playlist-copier=music_automation.core.copier:main',
-            'audio-processor=music_automation.core.processor:main',
+        "console_scripts": [
+            "musictools=music_automation.cli.main:main",
+            "playlist-matcher=music_automation.core.matcher:main",
+            "flac-database=music_automation.core.database:main",
+            "playlist-copier=music_automation.core.copier:main",
+            "audio-processor=music_automation.core.processor:main",
         ],
     },
     python_requires=">=3.11",
