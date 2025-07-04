@@ -143,30 +143,28 @@ def test_get_problematic_sample_rates(tmp_path: Path) -> None:
     assert rates == [96000]
 
 
+@pytest.mark.usefixtures("setup_database")
 def test_batch_resample_invokes_sox(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup_database
 ) -> None:
     """Ensure batch_resample chooses nearest rate and calls SoX."""
 
-    db_path = tmp_path / "db.sqlite"
-    conn = sqlite3.connect(db_path)
-    create_table(conn)
-    conn.execute(
-        "INSERT INTO flacs VALUES (?,?,?,?,?,?,?,?,?)",
-        (
-            str(tmp_path / "song.flac"),
-            "s",
-            1,
-            None,
-            None,
-            None,
-            None,
-            None,
-            '{"tags": {"SAMPLERATE": "88200"}}',
-        ),
+    setup_database(
+        tmp_path,
+        [
+            (
+                str(tmp_path / "song.flac"),
+                "s",
+                1,
+                None,
+                None,
+                None,
+                None,
+                None,
+                '{"tags": {"SAMPLERATE": "88200"}}',
+            )
+        ],
     )
-    conn.commit()
-    conn.close()
 
     monkeypatch.setattr(
         database,
