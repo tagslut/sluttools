@@ -4,9 +4,9 @@
 
 set -e
 
-# Ensure we're in the project root
-dirname=$(dirname "$0")
-cd "$dirname"
+# Get the absolute path to the directory containing this script
+SCRIPT_DIR=$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)
+cd "$SCRIPT_DIR"
 
 # Install the package in editable mode (preferred for development)
 pip install -e .
