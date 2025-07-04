@@ -9,6 +9,6 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)
 cd "$SCRIPT_DIR"
 
 # Install the package in editable mode (preferred for development)
-pip install -e .
+python3 -m pip install -e .
 
 echo "Installation complete!"
