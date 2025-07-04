@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+'''
+This file must be run with Python, not as a shell script.
+If you see an error like 'from: command not found', run:
+    python3 setup.py install
+or, preferably:
+    pip install .
+'''
+# Shell-guard: exit if run as a shell script
+if __name__ != "__main__":
+    pass
 
 from setuptools import setup, find_packages
 
