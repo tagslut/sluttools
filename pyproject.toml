@@ -2,62 +2,41 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[project]
+[tool.poetry]
 name = "music-automation-toolkit"
 version = "2.0.0"
 description = "A comprehensive toolkit for managing and cataloging large music libraries"
+authors = ["Georgie <geoooooorges@gmail.com>"]
+license = "MIT"
 readme = "README.md"
-authors = [
-    {name = "Georgie", email = ""}
-]
-license = {text = "MIT"}
-requires-python = ">=3.11"
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Multimedia :: Sound/Audio",
-    "Topic :: Utilities",
-]
-dependencies = [
-    "mutagen>=1.47.0",
-    "pandas>=2.0.0",
-    "rich>=13.0.0",
-    "fuzzywuzzy>=0.18.0",
-    "python-levenshtein>=0.21.0",
-    "openpyxl>=3.1.0",
+packages = [
+    { include = "music_automation", from = "src" }
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "mypy>=1.0.0",
-]
+[tool.poetry.dependencies]
+python = ">=3.11"
+mutagen = ">=1.47.0"
+pandas = ">=2.0.0"
+rich = ">=13.0.0"
+fuzzywuzzy = ">=0.18.0"
+python-levenshtein = ">=0.21.0"
+openpyxl = ">=3.1.0"
+aiofiles = "*"
+requests = "*"
+sqlite-utils = "*"
+tqdm = "*"
+rapidfuzz = "*"
 
-[project.urls]
-Homepage = "https://github.com/tagslut/sluttools"
-Repository = "https://github.com/tagslut/sluttools"
-Issues = "https://github.com/tagslut/sluttools/issues"
-
-[project.scripts]
-musictools = "music_automation.cli.main:main"
-playlist-matcher = "music_automation.core.matcher:main"
-flac-database = "music_automation.core.database:main"
-playlist-copier = "music_automation.core.copier:main"
-audio-processor = "music_automation.core.processor:main"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-music_automation = ["py.typed"]
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.0.0"
+pytest-cov = ">=4.0.0"
+black = ">=23.0.0"
+flake8 = ">=6.0.0"
+isort = ">=5.12.0"
+mypy = ">=1.0.0"
+bandit = ">=1.7.0"
+safety = ">=2.3.0"
+pre-commit = ">=3.0.0"
 
 [tool.black]
 line-length = 88
