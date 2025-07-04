@@ -4,14 +4,13 @@ __version__ = "2.0.0"
 __author__ = "Georgie"
 __description__ = "A comprehensive toolkit for managing and cataloging large music libraries"
 
-from .core.database import FlacDatabase
-from .core.matcher import PlaylistMatcher
-from .core.processor import AudioProcessor
-from .core.copier import PlaylistCopier
+# Import the core modules
+from . import core
+from . import cli
+from . import utils
 
 __all__ = [
-    "FlacDatabase",
-    "PlaylistMatcher", 
-    "AudioProcessor",
-    "PlaylistCopier"
+    "core",
+    "cli", 
+    "utils"
 ]

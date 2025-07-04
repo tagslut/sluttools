@@ -112,22 +112,47 @@ source .venv/bin/activate
 
 ### Quick Start
 
-**Interactive Mode (with animated UI):**
+**Using the CLI wrapper script:**
 ```bash
-musictools match
-```
+# Make sure you're in the project directory
+cd /path/to/sluttools
 
-**Command Line Interface:**
-```bash
 # Match a playlist
-musictools match /path/to/playlist.m3u
+./musictools match
+
+# Or match a specific playlist
+./musictools match /path/to/playlist.m3u
 
 # Manage FLAC database
-musictools db refresh ~/Music/FLACs
-musictools db list --limit 10
+./musictools db refresh ~/Music/FLACs
+./musictools db list --limit 10
 
 # Copy playlist files
-musictools copy /path/to/playlist.m3u /destination/folder
+./musictools copy /path/to/playlist.m3u /destination/folder
+```
+
+**Using Python module directly:**
+```bash
+# Make sure you're in the project directory
+cd /path/to/sluttools
+
+# Set Python path and run
+PYTHONPATH=./src python -m music_automation.cli.main --help
+```
+
+**Development Setup:**
+```bash
+# Install in development mode
+pip install -e .
+
+# Run tests
+PYTHONPATH=./src python -m pytest tests/
+
+# Format code
+black src/ tests/
+
+# Type check
+mypy src/
 ```
 
 **Command Line Mode:**
