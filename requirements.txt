@@ -1,0 +1,24 @@
+# Core dependencies
+rich>=10.0.0
+sqlite3
+pathlib
+requests>=2.31.0
+certifi>=2024.2.0
+
+# Fuzzy matching - prefer rapidfuzz (faster) but fallback to fuzzywuzzy
+rapidfuzz>=2.0.0
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.12.0
+
+# Audio file handling
+mutagen>=1.45.0
+
+# Async file operations
+aiofiles>=0.7.0
+
+# Data handling
+pandas>=1.3.0
+openpyxl>=3.0.7
+
+# Testing
+pytest>=6.2.5
