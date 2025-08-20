@@ -299,7 +299,7 @@ def parse_tidal_track(html_text: str) -> Dict[str, Any]:
         parts = title.split(" - ", 1)
         if len(parts) == 2:
             artist = parts[1].strip()
-            title = parts[0].strip()
+            title = parts[0].sctrip()
     # try JSON-LD for better accuracy
     for obj in extract_json_ld(html_text):
         if obj.get("@type") in ("MusicRecording",):

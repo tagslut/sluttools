@@ -206,6 +206,7 @@ async def run_matching_wizard():
         matched_paths = perform_matching_with_review(
             entries,
             flac_lookup,
+            playlist_input=path_in_str,
             threshold=int(config.get('THRESHOLD_AUTO_MATCH', 88)),
             review_min=int(config.get('THRESHOLD_REVIEW_MIN', 70)),
         )

@@ -269,9 +269,73 @@ def _score_candidates_with_metadata(norm_query: str, path_map: dict, library_cho
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored[:limit]
 
+def _interactive_export_menu(matches: dict, tracks_list: list[str], playlist_input: str):
+    """Displays an interactive menu to export matching results."""
+    playlist_path = Path(playlist_input)
+    playlist_name = playlist_path.stem
+
+    matched_paths = [path for path in matches.values() if path]
+    unmatched_tracks = extract_unmatched_tracks(tracks_list, matches)
+
+    if not matched_paths and not unmatched_tracks:
+        console.print("[yellow]No matches or unmatches to export.[/yellow]")
+        return
+
+    console.print("\n[bold cyan]--- Export Options ---[/bold cyan]")
+
+    choice_map = {}
+    if matched_paths:
+        console.print("[cyan]  [1] Export M3U playlist for matched tracks[/cyan]")
+        choice_map['1'] = 'm3u'
+    if unmatched_tracks:
+        console.print("[cyan]  [2] Export SongShift JSON for unmatched tracks[/cyan]")
+        choice_map['2'] = 'songshift'
+    console.print("[cyan]  [3] Export detailed JSON match report[/cyan]")
+    choice_map['3'] = 'json'
+    if matched_paths and unmatched_tracks:
+        console.print("[cyan]  [d] Do all of the above[/cyan]")
+        choice_map['d'] = 'all'
+    console.print("[cyan]  [s] Skip export[/cyan]")
+    choice_map['s'] = 'skip'
+
+    selection = Prompt.ask("Your choice?", choices=list(choice_map.keys()), default="s").lower()
+
+    if selection == 'skip':
+        return
+
+    def _export_m3u():
+        default_path_template = config.get('MATCH_OUTPUT_PATH_M3U', f"{playlist_name}_matched.m3u")
+        default_path = str(Path.cwd() / default_path_template.format(playlist_name=playlist_name))
+        output_path = Prompt.ask("Path for M3U file?", default=default_path)
+        write_match_m3u(matches, output_path)
+
+    def _export_songshift():
+        default_path = str(Path.cwd() / f"{playlist_name}_songshift.json")
+        output_path = Prompt.ask("Path for SongShift JSON file?", default=default_path)
+        write_songshift_json(unmatched_tracks, output_path, playlist_name=playlist_name)
+
+    def _export_json():
+        default_path_template = config.get('MATCH_OUTPUT_PATH_JSON', f"{playlist_name}_matches.json")
+        default_path = str(Path.cwd() / default_path_template.format(playlist_name=playlist_name))
+        output_path = Prompt.ask("Path for detailed JSON report?", default=default_path)
+        write_match_json(matches, output_path)
+
+    if selection == '1':
+        _export_m3u()
+    elif selection == '2':
+        _export_songshift()
+    elif selection == '3':
+        _export_json()
+    elif selection == 'd':
+        if '1' in choice_map: _export_m3u()
+        if '2' in choice_map: _export_songshift()
+        if '3' in choice_map: _export_json()
+
+
 def perform_matching_with_review(
     tracks: list[str],
     flac_lookup: list[tuple[str, str]],
+    playlist_input: str,
     threshold: int = 85,
     review_min: int = 65
 ) -> dict[str, str | None]:
@@ -359,38 +423,6 @@ def perform_matching_with_review(
                         logger.info("REJECTED: Low score (%.1f) for '%s' -> '%s'", score, track, match_path)
                 progress.update(task, advance=1)
 
-    HIGH_CONFIDENCE_THRESHOLD = 88
-    if len(auto_match_scores) >= 5:
-        score_counts = Counter(auto_match_scores)
-        most_common_list = score_counts.most_common(1)
-        if most_common_list:
-            most_common_score, max_same_count = most_common_list[0]
-            if max_same_count / len(auto_match_scores) > 0.7:
-                console.print(f"\n[bold yellow]⚠️ SUSPICIOUS MATCHING DETECTED ⚠️[/bold yellow]")
-                console.print(f"[yellow]{max_same_count}/{len(auto_match_scores)} tracks got score {most_common_score}. Moving to review.[/yellow]")
-                for track, path in list(results.items()):
-                    if path is not None:
-                        norm_query = normalize_string(track)
-                        candidate_norm = next((n for n, p in path_map.items() if p == path), None)
-                        if candidate_norm:
-                            source_meta = parse_filename_structure(track)
-                            candidate_meta = parse_filename_structure(path)
-                            score = calculate_match_score(source_meta, candidate_meta)
-                            score_rounded = int(round(score))
-                            if score_rounded < HIGH_CONFIDENCE_THRESHOLD:
-                                # Build metadata-scored candidates for this track
-                                candidates = _score_candidates_with_metadata(norm_query, path_map, library_choices, original_source=track, limit=5)
-                                uncertain_candidates[track] = candidates
-                                results[track] = None
-                                logger.debug(f"[Suspicious] Sent to review: {track} (score={score}, rounded={score_rounded})")
-                            else:
-                                logger.debug(f"[Suspicious] Auto-matched: {track} (score={score}, rounded={score_rounded})")
-                        else:
-                            candidates = _score_candidates_with_metadata(norm_query, path_map, library_choices, original_source=track, limit=5)
-                            uncertain_candidates[track] = candidates
-                            results[track] = None
-                            logger.debug(f"[Suspicious] Sent to review (no candidate_norm): {track}")
-
     if uncertain_candidates:
         console.print(f"\n[yellow]Reviewing {len(uncertain_candidates)} uncertain matches...[/yellow]")
         reviewed = review_uncertain_matches(uncertain_candidates)
@@ -405,9 +437,11 @@ def perform_matching_with_review(
         manual_matches = manual_match_unmatched(unmatched_queue, flac_lookup)
         results.update(manual_matches)
 
+    _interactive_export_menu(results, tracks, playlist_input)
+
     return results
 
-def find_matches(tracks, flac_lookup, threshold=85, review_min=65):
+def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_min=65):
     flac_lookup = _filter_flac_lookup(flac_lookup)
     path_map = {norm: path for path, norm in flac_lookup}
     library_choices = list(path_map.keys())
@@ -417,51 +451,52 @@ def find_matches(tracks, flac_lookup, threshold=85, review_min=65):
     auto_match_scores: list[int] = []
     used_library_paths: set[str] = set()
 
-    for track in tracks:
-        norm_query = normalize_string(track)
-        if not norm_query:
-            continue
+    with Progress(console=console) as progress:
+        task = progress.add_task("[green]Auto-matching...[/green]", total=len(tracks))
+        for track in tracks:
+            norm_query = normalize_string(track)
+            if not norm_query:
+                progress.update(task, advance=1)
+                continue
 
-        if norm_query in path_map:
-            match_path, score = path_map[norm_query], 100
-        else:
-            candidate_choices = _get_candidates_from_index(norm_query, inverted_index)
-            if not candidate_choices:
-                candidate_choices = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)]
-            match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0)
+            if norm_query in path_map:
+                match_path, score = path_map[norm_query], 100
+            else:
+                candidate_choices = _get_candidates_from_index(norm_query, inverted_index)
+                if not candidate_choices:
+                    candidate_choices = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)]
+                match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0)
 
-        if match_path and match_path in used_library_paths:
-            logger.debug("Skipping candidate already used: %s", match_path)
-            match_path, score = None, 0
+            if match_path and match_path in used_library_paths:
+                logger.debug("Skipping candidate already used: %s", match_path)
+                match_path, score = None, 0
 
-        # Apply word-overlap sanity check
-        overlap_ok = False
-        if match_path:
-            try:
-                matched_norm = next(n for n, p in path_map.items() if p == match_path)
-                overlap = _word_overlap_fraction(norm_query, matched_norm)
-                overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
-            except StopIteration:
-                overlap_ok = True
-        if match_path and score >= threshold and overlap_ok:
-            console.print(f"[green]MATCH:[/] '{track}' → '{match_path}' (Score: {int(score)})")
-            results[track] = match_path
-            auto_match_scores.append(int(round(score)))
-            used_library_paths.add(match_path)
-        else:
-            results[track] = None
+            # Apply word-overlap sanity check
+            overlap_ok = False
+            if match_path:
+                try:
+                    matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                    overlap = _word_overlap_fraction(norm_query, matched_norm)
+                    overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                except StopIteration:
+                    overlap_ok = True
+            if match_path and score >= threshold and overlap_ok:
+                console.print(f"[green]MATCH:[/] '{track}' → '{match_path}' (Score: {int(score)})")
+                results[track] = match_path
+                auto_match_scores.append(int(round(score)))
+                used_library_paths.add(match_path)
+            else:
+                results[track] = None
+            progress.update(task, advance=1)
 
-    if len(auto_match_scores) >= 5:
-        score_counts = Counter(auto_match_scores)
-        most_common_list = score_counts.most_common(1)
-        if most_common_list:
-            most_common_score, max_same_count = most_common_list[0]
-            if max_same_count / len(auto_match_scores) > 0.7:
-                console.print(f"\n⚠️ SUSPICIOUS MATCHING DETECTED ⚠️")
-                console.print(f"{max_same_count}/{len(auto_match_scores)} tracks got score {most_common_score}. Moving to review.")
-                for track, path in list(results.items()):
-                    if path is not None:
-                        results[track] = None
+    unmatched_tracks = [track for track, path in results.items() if path is None]
+    if unmatched_tracks:
+        console.print(f"\n[yellow]{len(unmatched_tracks)} tracks remain unmatched.[/yellow]")
+        if Prompt.ask("[bold]Review them manually?[/bold]", choices=["y", "n"], default="y") == "y":
+            manual_matches = manual_match_unmatched(unmatched_tracks, flac_lookup)
+            results.update(manual_matches)
+
+    _interactive_export_menu(results, tracks, playlist_input)
 
     return results
 

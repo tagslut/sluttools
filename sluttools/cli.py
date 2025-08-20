@@ -199,6 +199,7 @@ def match_auto(
     matches = find_matches(
         tracks,
         flac_lookup,
+        playlist_input=playlist,
         threshold=config['THRESHOLD_AUTO_MATCH'],
         review_min=config['THRESHOLD_REVIEW_MIN'],
     )
@@ -259,6 +260,7 @@ async def _interactive_match_async(playlist: str, plain: bool = False, no_refres
     matches = perform_matching_with_review(
         tracks,
         flac_lookup,
+        playlist_input=playlist,
         threshold=config['THRESHOLD_AUTO_MATCH'],
         review_min=config['THRESHOLD_REVIEW_MIN']
     )
@@ -354,7 +356,7 @@ def out_m3u(
         console.print("[red]No tracks loaded from playlist.[/red]")
         raise typer.Exit(1)
     flac_lookup = get_flac_lookup()
-    matches = find_matches(tracks, flac_lookup, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
+    matches = find_matches(tracks, flac_lookup, playlist_input=playlist, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
     playlist_name = Path(playlist).stem
     out_path = output or str(config['MATCH_OUTPUT_PATH_M3U']).format(playlist_name=playlist_name)
     write_match_m3u(matches, output_path=out_path)
@@ -393,7 +395,7 @@ def out_json(
         console.print("[red]No tracks loaded from playlist.[/red]")
         raise typer.Exit(1)
     flac_lookup = get_flac_lookup()
-    matches = find_matches(tracks, flac_lookup, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
+    matches = find_matches(tracks, flac_lookup, playlist_input=playlist, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
     playlist_name = Path(playlist).stem
     out_path = output or str(config['MATCH_OUTPUT_PATH_JSON']).format(playlist_name=playlist_name)
     write_match_json(matches, output_path=out_path)
@@ -432,7 +434,7 @@ def out_songshift(
         console.print("[red]No tracks loaded from playlist.[/red]")
         raise typer.Exit(1)
     flac_lookup = get_flac_lookup()
-    matches = find_matches(tracks, flac_lookup, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
+    matches = find_matches(tracks, flac_lookup, playlist_input=playlist, threshold=config['THRESHOLD_AUTO_MATCH'], review_min=config['THRESHOLD_REVIEW_MIN'])
     playlist_name = Path(playlist).stem
     unmatched_tracks = [{"artist": "", "track": track} for track, match in matches.items() if match is None]
     out_path = output or f"{playlist_name}_songshift.json"
