@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 from collections import Counter
 from typing import List, Tuple
+from concurrent.futures import ThreadPoolExecutor
 
 from rich.progress import Progress
 from rich.prompt import Prompt
@@ -289,64 +290,74 @@ def perform_matching_with_review(
 
     with Progress(console=console) as progress:
         task = progress.add_task("[green]Finding matches...[/green]", total=len(tracks))
-        for track in tracks:
+
+        def _process_track(track: str) -> Tuple[str, str, str | None, float]:
+            """Helper to process a single track to find a match; for parallelism."""
             norm_query = normalize_string(track)
             if not norm_query:
-                progress.update(task, advance=1)
-                continue
+                return track, norm_query, None, 0.0
 
             if norm_query in path_map:
-                match_path, score = path_map[norm_query], 100
+                match_path, score = path_map[norm_query], 100.0
             else:
                 candidate_choices = _get_candidates_from_index(norm_query, inverted_index)
-                # Fallback: if index yields nothing, use fuzzy to collect a wider candidate pool
                 if not candidate_choices:
                     candidate_choices = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)]
-                match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0)
+                match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0.0)
+            return track, norm_query, match_path, score
 
-            if match_path and match_path in used_library_paths:
-                logger.debug("Skipping candidate already used: %s", match_path)
-                match_path, score = None, 0
+        with ThreadPoolExecutor() as executor:
+            # executor.map preserves the order of the input `tracks` iterable
+            future_results = executor.map(_process_track, tracks)
 
-            # Apply word-overlap sanity check before accepting
-            overlap_ok = False
-            if match_path:
-                # match_path corresponds to a path; need its normalized key to compute overlap.
-                # Reverse-lookup norm from path_map
-                # path_map maps norm->path, so build reverse lazily for this check
-                try:
-                    # small reverse map for this single check
-                    matched_norm = next(n for n, p in path_map.items() if p == match_path)
-                    overlap = _word_overlap_fraction(norm_query, matched_norm)
-                    overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
-                except StopIteration:
-                    overlap_ok = True  # if unknown, don't block
-            if match_path and score >= threshold and overlap_ok:
-                console.print(f"[green][AUTO][/green] {int(score)} {track} → {match_path}")
-                console.print("─" * 80)
-                results[track] = match_path
-                auto_match_scores.append(score)
-                used_library_paths.add(match_path)
-            elif match_path and review_min <= score < threshold:
-                # If word overlap is too low, downgrade to unmatched; if borderline, keep for review
-                try:
-                    matched_norm = next(n for n, p in path_map.items() if p == match_path)
-                    overlap = _word_overlap_fraction(norm_query, matched_norm)
-                except StopIteration:
-                    overlap = 1.0
-                review_floor = float(config.get('WORD_OVERLAP_REVIEW', 0.40))
-                reject_floor = float(config.get('WORD_OVERLAP_REJECT', 0.15))
-                if overlap < reject_floor:
-                    unmatched_queue.append(track)
-                else:
-                    # Build metadata-scored candidates for consistent review display
-                    candidates = _score_candidates_with_metadata(norm_query, path_map, library_choices, original_source=track, limit=5)
-                    uncertain_candidates[track] = candidates
-            else:
-                unmatched_queue.append(track)
+            for track, norm_query, match_path, score in future_results:
+                if not norm_query:
+                    progress.update(task, advance=1)
+                    continue
+
+                if match_path and match_path in used_library_paths:
+                    logger.debug("Skipping candidate already used: %s", match_path)
+                    match_path, score = None, 0
+
+                # Apply word-overlap sanity check before accepting
+                overlap_ok = False
                 if match_path:
-                    logger.info("REJECTED: Low score (%.1f) for '%s' -> '%s'", score, track, match_path)
-            progress.update(task, advance=1)
+                    # match_path corresponds to a path; need its normalized key to compute overlap.
+                    # Reverse-lookup norm from path_map
+                    # path_map maps norm->path, so build reverse lazily for this check
+                    try:
+                        # small reverse map for this single check
+                        matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                        overlap = _word_overlap_fraction(norm_query, matched_norm)
+                        overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                    except StopIteration:
+                        overlap_ok = True  # if unknown, don't block
+                if match_path and score >= threshold and overlap_ok:
+                    console.print(f"[green][AUTO][/green] {int(score)} {track} → {match_path}")
+                    console.print("─" * 80)
+                    results[track] = match_path
+                    auto_match_scores.append(score)
+                    used_library_paths.add(match_path)
+                elif match_path and review_min <= score < threshold:
+                    # If word overlap is too low, downgrade to unmatched; if borderline, keep for review
+                    try:
+                        matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                        overlap = _word_overlap_fraction(norm_query, matched_norm)
+                    except StopIteration:
+                        overlap = 1.0
+                    review_floor = float(config.get('WORD_OVERLAP_REVIEW', 0.40))
+                    reject_floor = float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                    if overlap < reject_floor:
+                        unmatched_queue.append(track)
+                    else:
+                        # Build metadata-scored candidates for consistent review display
+                        candidates = _score_candidates_with_metadata(norm_query, path_map, library_choices, original_source=track, limit=5)
+                        uncertain_candidates[track] = candidates
+                else:
+                    unmatched_queue.append(track)
+                    if match_path:
+                        logger.info("REJECTED: Low score (%.1f) for '%s' -> '%s'", score, track, match_path)
+                progress.update(task, advance=1)
 
     HIGH_CONFIDENCE_THRESHOLD = 88
     if len(auto_match_scores) >= 5:
