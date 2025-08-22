@@ -11,4 +11,8 @@ lint:
 test:
 	pytest
 
+match:
+\tpoetry run slut-match match "$(PLAYLIST)" --m3u Minimal_Focus.m3u --export-unmatched Minimal_Focus_unmatched.json
+
+
 check: lint test

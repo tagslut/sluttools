@@ -1,0 +1,109 @@
+[
+  {
+    "service": "qobuz",
+    "serviceId": null,
+    "name": "Minimal | Focus",
+    "tracks": [
+      {
+        "artist": "Dirty Doering",
+        "track": "Cape of Good Hope"
+      },
+      {
+        "artist": "Pulshar",
+        "track": "Nospheratu"
+      },
+      {
+        "artist": "Marbert Rocel",
+        "track": "Cornflake Boy (Solomun Remix - Vocal)"
+      },
+      {
+        "artist": "Various Interprets",
+        "track": "Callisto"
+      },
+      {
+        "artist": "Alessandro Diga",
+        "track": "Meltdown"
+      },
+      {
+        "artist": "Youandewan",
+        "track": "1988"
+      },
+      {
+        "artist": "Tommylefunk",
+        "track": "Stuggi Nights"
+      },
+      {
+        "artist": "Federleicht",
+        "track": "On The Streets"
+      },
+      {
+        "artist": "Guy J",
+        "track": "Lamur"
+      },
+      {
+        "artist": "Bedtime Beats",
+        "track": "Dark side of my room"
+      },
+      {
+        "artist": "Paji",
+        "track": "The Old Gods"
+      },
+      {
+        "artist": "Fran\u00e7ois Ier",
+        "track": "Neptune"
+      },
+      {
+        "artist": "White Shadows",
+        "track": "A-Side"
+      },
+      {
+        "artist": "Recondite",
+        "track": "Levo"
+      },
+      {
+        "artist": "Joep Mencke",
+        "track": "Wasu"
+      },
+      {
+        "artist": "Beneath Usual",
+        "track": "Perception"
+      },
+      {
+        "artist": "Dominik Eulberg",
+        "track": "Sansula"
+      },
+      {
+        "artist": "Abel Tasman",
+        "track": "Sunny Nelson (Edit)"
+      },
+      {
+        "artist": "My Ocean",
+        "track": "Southern Sky"
+      },
+      {
+        "artist": "Znoijk",
+        "track": "Colors By Shade"
+      },
+      {
+        "artist": "My Ocean",
+        "track": "Secrets Calling"
+      },
+      {
+        "artist": "Candrian",
+        "track": "City Bumps"
+      },
+      {
+        "artist": "Robo Rat",
+        "track": "Mope Amok"
+      },
+      {
+        "artist": "Jones Meadow",
+        "track": "Paint"
+      },
+      {
+        "artist": "Son-us",
+        "track": "Apelsin"
+      }
+    ]
+  }
+]

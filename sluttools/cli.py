@@ -8,7 +8,7 @@ from rich.text import Text
 from rich.align import Align
 from rich.live import Live
 from rich.prompt import Prompt
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
 from typing import Optional
 
@@ -156,7 +156,7 @@ def get_library():
     Scan the music library paths and update the database.
 
     This command walks through the library directories defined in your configuration,
-    collecting metadata for all FLAC files found. It is the first step you should
+    collecting metadata for all supported audio files found. It is the first step you should
     run, as all other commands depend on an up-to-date database.
     """
     console.print("[cyan]Scanning library paths and updating database...[/cyan]")
@@ -182,7 +182,8 @@ def get_playlist(
 
 @match_app.command(name="auto")
 def match_auto(
-    playlist: str = typer.Argument(..., help="Path to the playlist file (JSON: SongShift or simple, M3U/M3U8/TXT)")
+    playlist: str = typer.Argument(..., help="Path to the playlist file (JSON: SongShift or simple, M3U/M3U8/TXT)"),
+    backend: str = typer.Option("smart", "--backend", help="Matching backend: smart (metadata-aware) or simple (gg.py-style)", case_sensitive=False)
 ):
     """
     Non-interactive matching. Computes matches and prints a summary.
@@ -196,13 +197,28 @@ def match_auto(
 
     console.print("Finding matches...")
     flac_lookup = get_flac_lookup()
-    matches = find_matches(
-        tracks,
-        flac_lookup,
-        playlist_input=playlist,
-        threshold=config['THRESHOLD_AUTO_MATCH'],
-        review_min=config['THRESHOLD_REVIEW_MIN'],
-    )
+    backend_lc = (backend or "smart").strip().lower()
+    if backend_lc not in ("smart", "simple"):
+        console.print(f"[yellow]Unknown backend '{backend}'. Falling back to 'smart'.[/yellow]")
+        backend_lc = "smart"
+
+    if backend_lc == "simple":
+        from .matching import simple_find_matches
+        matches = simple_find_matches(
+            tracks,
+            flac_lookup,
+            playlist_input=playlist,
+            threshold=config['THRESHOLD_AUTO_MATCH'],
+        )
+    else:
+        matches = find_matches(
+            tracks,
+            flac_lookup,
+            playlist_input=playlist,
+            threshold=config['THRESHOLD_AUTO_MATCH'],
+            review_min=config['THRESHOLD_REVIEW_MIN'],
+        interactive=False,
+        )
 
     console.print("\n[bold green]Successful Matches:[/bold green]")
     for track, path in matches.items():
@@ -219,7 +235,7 @@ def match_auto(
 def match_review(
     playlist: str = typer.Argument(..., help="Path to the playlist file (JSON: SongShift or simple, M3U/M3U8/TXT)"),
     plain: bool = typer.Option(False, "--plain", help="Disable animation/colors"),
-    no_refresh: bool = typer.Option(False, "--no-refresh", help="Skip FLAC DB reindex for faster review"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help="Skip library reindex for faster review"),
 ):
     """
     Interactive matching with animated UI and manual review options.
@@ -231,7 +247,7 @@ async def _interactive_match_async(playlist: str, plain: bool = False, no_refres
     """Async implementation of interactive matching"""
     console.clear()
     # Show last tracks option
-    if safe_confirm("[bold cyan]Show last 100 tracks from FLAC DB before proceeding?[/bold cyan]", default=False):
+    if safe_confirm("[bold cyan]Show last 100 tracks from the index before proceeding?[/bold cyan]", default=False):
         _show_last_tracks(100)
     # Animated intro
     await animate_title(refresh_rate=0.2, wait_time=3.0, plain=plain)
@@ -246,15 +262,15 @@ async def _interactive_match_async(playlist: str, plain: bool = False, no_refres
     console.print(f"[green]Loaded {len(tracks)} track(s) from {playlist_name}[/green]")
     # Refresh library with progress (unless --no-refresh)
     if not no_refresh:
-        console.print(f"[cyan]Refreshing FLAC library index...[/cyan]")
+        console.print(f"[cyan]Refreshing library index...[/cyan]")
         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as prog:
             prog.add_task(description="Updating index", total=None)
             for library_path in config['LIBRARY_ROOTS']:
                 refresh_library(library_dir_str=library_path, db_path_str=config['DB_PATH'])
     else:
-        console.print(f"[yellow]Skipping FLAC library reindex (--no-refresh set). Using existing DB.[/yellow]")
+        console.print(f"[yellow]Skipping library reindex (--no-refresh set). Using existing DB.[/yellow]")
     flac_lookup = get_flac_lookup()
-    console.print(f"[green]FLAC index contains {len(flac_lookup)} entries[/green]")
+    console.print(f"[green]Library index contains {len(flac_lookup)} entries[/green]")
     # Enhanced matching with interactive review
     console.print(f"[cyan]Attempting to match {len(tracks)} entries...[/cyan]")
     matches = perform_matching_with_review(
@@ -299,8 +315,7 @@ async def _interactive_match_async(playlist: str, plain: bool = False, no_refres
 def _show_last_tracks(n=100):
     """Show last n tracks from database"""
     from .database import get_last_n_tracks
-    import time
-    
+
     tracks = get_last_n_tracks(n)
     console.print(f"[bold cyan]Last {len(tracks)} entries from FLAC DB:[/bold cyan]")
     for track in tracks:
@@ -460,6 +475,65 @@ app.add_typer(tag_app, name="tag")
 app.add_typer(out_app, name="out")
 app.add_typer(list_app, name="list")
 app.add_typer(config_app, name="config")
+
+
+# --- Argparse CLI for 'fla' entrypoint ---
+
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+def _wire_match_subparser(sub):
+    import argparse
+    mp = sub.add_parser("match", help="Match a playlist/folder to local FLACs")
+    mp.add_argument("path", help="Playlist file or folder")
+    mp.add_argument("--mode", choices=["auto", "quick", "thorough"], default="auto")
+    mp.add_argument("--out", choices=["m3u", "csv", "both", "none"], default="m3u")
+    mp.add_argument("--no-manual", action="store_true",
+                    help="Run headless: skip interactive prompts")
+    mp.add_argument("--library", default=os.getenv("SLUT_LIBRARY", "/Volumes/sad/MUSIC"))
+    mp.add_argument("--threshold", type=int, default=_env_int("SLUT_AUTO_THRESHOLD", 60))
+    mp.add_argument("--title-threshold", type=int, default=_env_int("SLUT_TITLE_THRESHOLD", 70))
+    mp.set_defaults(func=_dispatch_match)
+    return mp
+
+def _dispatch_match(args):
+    import asyncio
+    try:
+        from sluttools.matching import run_matcher
+    except ImportError as e:
+        print(f"[fatal] Matcher engine is not available in sluttools.matching: {e}")
+        return
+
+    asyncio.run(run_matcher(
+        path_in=args.path,
+        mode=args.mode,
+        out=args.out,
+        manual=not args.no_manual,
+        library=args.library,
+        threshold=args.threshold,
+        title_threshold=args.title_threshold,
+    ))
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser(
+        prog="fla",
+        description="A command-line tool for matching playlists to a local FLAC library."
+    )
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    # Wire up subcommands
+    _wire_match_subparser(sub)
+
+    args = ap.parse_args()
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        ap.print_help()
 
 
 if __name__ == "__main__":

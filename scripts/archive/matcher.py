@@ -68,7 +68,7 @@ DB_PATH = Path("/Users/georgeskhawam/Library/Mobile Documents/com~apple~CloudDoc
 CACHE_TTL = 3600  # seconds
 
 # Path to qobuz-dl skip database
-SKIP_DB_PATH = Path.home() / ".config/qobuz-dl/qobuz_dl.db"
+#SKIP_DB_PATH = Path.home() / ".config/qobuz-dl/qobuz_dl.db"
 
 ################################################################################
 # SAFE INPUT HELPERS

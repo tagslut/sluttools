@@ -10,6 +10,17 @@ from rich.progress import Progress
 from rich.prompt import Prompt
 from thefuzz import process as fuzzy_process
 
+# Prefer rapidfuzz for direct ratio scoring if available
+try:
+    from rapidfuzz import fuzz as rf_fuzz  # type: ignore
+    def _rf_ratio(a: str, b: str) -> float:
+        return float(rf_fuzz.ratio(a, b))
+except Exception:
+    # Fallback to thefuzz ratio
+    from thefuzz import fuzz as _fw_fuzz  # type: ignore
+    def _rf_ratio(a: str, b: str) -> float:
+        return float(_fw_fuzz.ratio(a, b))
+
 from .config import console, config
 from .metadata import normalize_string
 from .matcher import calculate_match_score
@@ -63,6 +74,12 @@ def get_playlist_tracks(playlist_input: str) -> list[str] | None:
     if not path.exists():
         console.print(f"[red]Error: Input file not found at {path}[/red]")
         return None
+
+    if path.is_dir():
+        from .database import scan_audio_files
+        console.print(f"[green]Scanning directory for audio files: {path}[/green]")
+        return [str(p) for p in scan_audio_files(path)]
+
     suffix = path.suffix.lower()
     if suffix in ('.m3u', '.m3u8', '.txt'):
         return parse_m3u(path)
@@ -71,6 +88,48 @@ def get_playlist_tracks(playlist_input: str) -> list[str] | None:
     else:
         console.print(f"[red]Unsupported playlist format: {suffix}[/red]")
         return None
+
+
+async def run_matcher(path_in, mode, out, manual, library, threshold, title_threshold):
+    """Orchestrates the matching process based on arguments."""
+    from .database import refresh_library, get_flac_lookup
+
+    console.print(f"[cyan]Refreshing library index for {library}...[/cyan]")
+    refresh_library(db_path_str=config['DB_PATH'], library_dir_str=library)
+
+    tracks = get_playlist_tracks(path_in)
+    if not tracks:
+        return
+
+    flac_lookup = get_flac_lookup()
+
+    if manual:
+        perform_matching_with_review(
+            tracks, flac_lookup, playlist_input=path_in,
+            threshold=threshold, review_min=title_threshold
+        )
+    else:
+        matches = find_matches(
+            tracks, flac_lookup, playlist_input=path_in,
+            threshold=threshold, review_min=title_threshold, interactive=False
+        )
+
+        # Non-interactive export
+        playlist_name = Path(path_in).stem
+        matched_count = len([m for m in matches.values() if m])
+        unmatched_count = len(tracks) - matched_count
+        console.print(f"[bold green]{matched_count} matched[/bold green], [bold red]{unmatched_count} unmatched[/bold red]")
+
+        if out in ('m3u', 'both') and matched_count > 0:
+            out_path_m3u = str(config.get('MATCH_OUTPUT_PATH_M3U', '{playlist_name}.m3u')).format(playlist_name=playlist_name)
+            write_match_m3u(matches, output_path=out_path_m3u)
+            console.print(f"[bold green]✓ Wrote M3U:[/bold green] {out_path_m3u}")
+
+        if out in ('csv', 'both'): # 'csv' is mapped to JSON as per implementation.
+            out_path_json = str(config.get('MATCH_OUTPUT_PATH_JSON', '{playlist_name}_matches.json')).format(playlist_name=playlist_name)
+            write_match_json(matches, output_path=out_path_json)
+            console.print(f"[bold green]✓ Wrote JSON report:[/bold green] {out_path_json}")
+
 
 def review_uncertain_matches(uncertain_matches: dict) -> dict[str, str | None]:
     reviewed_matches = {}
@@ -441,7 +500,7 @@ def perform_matching_with_review(
 
     return results
 
-def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_min=65):
+def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_min=65, interactive: bool = True):
     flac_lookup = _filter_flac_lookup(flac_lookup)
     path_map = {norm: path for path, norm in flac_lookup}
     library_choices = list(path_map.keys())
@@ -490,13 +549,14 @@ def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_
             progress.update(task, advance=1)
 
     unmatched_tracks = [track for track, path in results.items() if path is None]
-    if unmatched_tracks:
+    if interactive and unmatched_tracks:
         console.print(f"\n[yellow]{len(unmatched_tracks)} tracks remain unmatched.[/yellow]")
         if Prompt.ask("[bold]Review them manually?[/bold]", choices=["y", "n"], default="y") == "y":
             manual_matches = manual_match_unmatched(unmatched_tracks, flac_lookup)
             results.update(manual_matches)
 
-    _interactive_export_menu(results, tracks, playlist_input)
+    if interactive:
+        _interactive_export_menu(results, tracks, playlist_input)
 
     return results
 
@@ -527,3 +587,42 @@ def extract_unmatched_tracks(tracks_list: list[str], matches: dict) -> list[dict
             artist, title = parts if len(parts) == 2 else ("Unknown Artist", track_name)
             unmatched.append({"artist": artist.strip(), "track": title.strip()})
     return unmatched
+
+
+def simple_find_matches(tracks: list[str], flac_lookup: list[tuple[str, str]], playlist_input: str, threshold: int = 85) -> dict[str, str | None]:
+    """
+    Simple fuzzy-ratio matcher similar to scripts/archive/gg.py.
+    - Builds a norm->path map from the library index.
+    - For each query string, computes direct ratio against top fuzzy candidates.
+    - Accepts best candidate if score >= threshold.
+    """
+    # Filter hidden entries (AppleDouble, etc.) like the other paths do
+    flac_lookup = _filter_flac_lookup(flac_lookup)
+    path_map = {norm: path for path, norm in flac_lookup}
+    library_choices = list(path_map.keys())
+
+    results: dict[str, str | None] = {track: None for track in tracks}
+
+    with Progress(console=console) as progress:
+        task = progress.add_task("[green]Auto-matching (simple)...[/green]", total=len(tracks))
+        for track in tracks:
+            norm_query = normalize_string(track)
+            best_path = None
+            best_score = 0.0
+            if norm_query in path_map:
+                best_path, best_score = path_map[norm_query], 100.0
+            else:
+                # Seed with fuzzy choices to avoid scoring against the whole library
+                seeds = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)] if library_choices else []
+                for cand_norm in seeds:
+                    score = _rf_ratio(norm_query, cand_norm)
+                    if score > best_score:
+                        best_score = score
+                        best_path = path_map[cand_norm]
+            if best_path and best_score >= float(threshold):
+                console.print(f"[green]MATCH:[/] '{track}' → '{best_path}' (Score: {int(best_score)})")
+                results[track] = best_path
+            progress.update(task, advance=1)
+
+    _interactive_export_menu(results, tracks, playlist_input)
+    return results

@@ -88,7 +88,7 @@ def render_design_box(offset: int) -> Text:
     text_content = "♫ GEORGIE'S PLAYLIST MAGIC BOX ♫"
     text_length = len(text_content)
     total_padding = interior_width - text_length
-    pad_left = total_padding // 2
+    pad_left = t    otal_padding // 2
     pad_right = total_padding - pad_left
 
     def animate_text(text: str, offset: int) -> Text:

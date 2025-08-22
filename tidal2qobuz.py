@@ -87,12 +87,14 @@ def _retry_countries(preferred: Optional[str]) -> list[str]:
     return out
 
 def _extract_playlist_uuid(s: str) -> str:
+    """Extract a playlist UUID from a string or URL; raises ValueError if not found."""
     m = _uuid_re.search(s or "")
     if not m:
         raise ValueError("Could not extract playlist UUID from input.")
     return m.group(0)
 
 def _normalize_artist_list(artists):
+    """Return a comma-separated artist string from varied TIDAL artist structures."""
     if not artists:
         return ""
     names = []
@@ -105,6 +107,7 @@ def _normalize_artist_list(artists):
     return ", ".join(n for n in names if n)
 
 def _iter_tracks_from_page(page_obj):
+    """Yield track dicts from heterogeneous TIDAL page JSON structures."""
     # rows -> items -> data.tracks.items[*].item or data.pagedList(items)
     for row in page_obj.get("rows", []):
         for cell in row.get("items", []):
@@ -208,6 +211,7 @@ def _normalize_tidal_url(url: str) -> str:
 # ---------- Utilities ----------
 
 def http_get(url: str, headers: Optional[Dict[str, str]] = None, retries: int = 2, delay: float = 0.5) -> str:
+    """HTTP GET with UA, optional headers, basic retry, and clearer SSL errors."""
     last_err = None
     req_headers = {"User-Agent": UA}
     if headers:
@@ -230,9 +234,11 @@ def http_get(url: str, headers: Optional[Dict[str, str]] = None, retries: int = 
     raise RuntimeError(f"GET failed for {url}: {last_err}") from last_err
 
 def strip_parens(text: str) -> str:
+    """Remove parenthetical/bracketed substrings, used to reduce noise."""
     return re.sub(r"[\(\[][^)\]]*[\)\]]", "", text)
 
 def normalize(text: str) -> str:
+    """Lowercase, unescape, drop common edition terms and non-alphanumerics."""
     t = html.unescape(text or "")
     t = t.lower()
     t = strip_parens(t)
@@ -242,6 +248,7 @@ def normalize(text: str) -> str:
     return t
 
 def token_set_ratio(a: str, b: str) -> float:
+    """Compute soft overlap score using token sets of normalized strings (0..1)."""
     A = set(normalize(a).split())
     B = set(normalize(b).split())
     if not A or not B:
@@ -251,9 +258,11 @@ def token_set_ratio(a: str, b: str) -> float:
     return inter / denom
 
 def soft_equals(a: str, b: str, thresh: float = 0.6) -> bool:
+    """Return True if token_set_ratio(a, b) >= threshold."""
     return token_set_ratio(a, b) >= thresh
 
 def best_match_by_score(candidates: List[Tuple[float, Any]]) -> Optional[Any]:
+    """Pick candidate item with highest score if above acceptance floor."""
     if not candidates:
         return None
     candidates.sort(key=lambda x: x[0], reverse=True)
@@ -262,6 +271,7 @@ def best_match_by_score(candidates: List[Tuple[float, Any]]) -> Optional[Any]:
 # ---------- Tidal parsing (HTML/JSON-LD) ----------
 
 def identify_tidal_kind(url: str) -> str:
+    """Heuristically classify a TIDAL URL as track/album/playlist/unknown."""
     # looks for /track/, /album/, /playlist/ in the path
     path = urllib.parse.urlparse(url).path.lower()
     if "track" in path:
@@ -273,6 +283,7 @@ def identify_tidal_kind(url: str) -> str:
     return "unknown"
 
 def extract_json_ld(html_text: str) -> List[dict]:
+    """Extract and parse all JSON-LD script blocks from the given HTML."""
     out = []
     for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html_text, re.S | re.I):
         block = m.group(1).strip()
@@ -287,11 +298,13 @@ def extract_json_ld(html_text: str) -> List[dict]:
     return out
 
 def extract_og(html_text: str, prop: str) -> Optional[str]:
+    """Return OpenGraph meta content value for the given property, if present."""
     # <meta property="og:title" content="...">
     m = re.search(rf'<meta\s+(?:property|name)=["\']{re.escape(prop)}["\']\s+content=["\']([^"\']+)["\']', html_text, re.I)
     return html.unescape(m.group(1)) if m else None
 
 def parse_tidal_track(html_text: str) -> Dict[str, Any]:
+    """Parse track HTML/JSON-LD into a minimal dict: type, title, artist, album."""
     title = extract_og(html_text, "og:title") or ""
     # og:title often "Song Title - Artist"
     artist = ""
@@ -316,6 +329,7 @@ def parse_tidal_track(html_text: str) -> Dict[str, Any]:
     return {"type": "track", "title": title, "artist": artist, "album": ""}
 
 def parse_tidal_album(html_text: str) -> Dict[str, Any]:
+    """Parse album HTML/JSON-LD into a dict with album, artist and optional tracks."""
     album_title = extract_og(html_text, "og:title") or ""
     artist = extract_og(html_text, "music:musician") or ""
     # JSON-LD can refine
@@ -394,6 +408,7 @@ def _collect_tracks_from_json(obj: Any, out: List[dict]):
             _collect_tracks_from_json(it, out)
 
 def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
+    """Parse playlist HTML (JSON-LD/Next.js) into title and list of {title, artist}."""
     # Tidal playlist pages often embed track data in a Next.js JSON block.
     tracks: List[Dict[str, str]] = []
     title = extract_og(html_text, "og:title") or "Playlist"
@@ -577,6 +592,7 @@ def parse_tidal_url(url: str) -> Dict[str, Any]:
 # ---------- Qobuz search ----------
 
 def qobuz_search(query: str) -> dict:
+    """Query the Qobuz search API and return parsed JSON; requires stored credentials."""
     if not QOBUZ_APP_ID or not QOBUZ_USER_AUTH_TOKEN:
         error_message = "Error: Qobuz credentials not found in Keychain.\n"
         error_message += f"Please store them by running the following commands:\n\n"
@@ -600,6 +616,7 @@ def qobuz_search(query: str) -> dict:
         raise RuntimeError(f"Qobuz search parse error: {e}; raw={data[:280]}")
 
 def pick_best_track(qres: dict, t_title: str, t_artist: str, t_album: str = "") -> Optional[dict]:
+    """Score Qobuz tracks against title/artist/album and return the best match."""
     tracks = (qres.get("tracks") or {}).get("items") or []
     scored = []
     for tr in tracks:
@@ -615,6 +632,7 @@ def pick_best_track(qres: dict, t_title: str, t_artist: str, t_album: str = "") 
     return best_match_by_score(scored)
 
 def pick_best_album(qres: dict, a_title: str, a_artist: str = "") -> Optional[dict]:
+    """Score Qobuz albums against title/artist and return the best match."""
     albums = (qres.get("albums") or {}).get("items") or []
     scored = []
     for al in albums:
@@ -628,6 +646,7 @@ def pick_best_album(qres: dict, a_title: str, a_artist: str = "") -> Optional[di
 
 
 def build_query_for_track(t: Dict[str, Any]) -> str:
+    """Build a compact search query from a track dict (artist, title, optional album)."""
     parts = [t.get("artist") or "", t.get("title") or ""]
     if t.get("album"):
         parts.append(t["album"])
@@ -635,6 +654,7 @@ def build_query_for_track(t: Dict[str, Any]) -> str:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    """CLI entrypoint: resolve a TIDAL URL to Qobuz links; supports JSON/CSV output."""
     parser = argparse.ArgumentParser(description="Map a Tidal URL to Qobuz content")
     parser.add_argument("url", help="Tidal track/album/playlist URL")
     parser.add_argument("--json", dest="json_out", help="Write results to JSON file")

@@ -19,7 +19,6 @@ from rich.console import Console
 from rich.live import Live
 from rich.prompt import Prompt, Confirm
 from rich.text import Text
-from thefuzz import process as fuzzy_process
 
 # --- Import Handling for Direct Execution vs. Package Import ---
 # This block allows the script to be run directly (e.g., `python wizard.py`)
@@ -30,7 +29,6 @@ try:
     from .config import console, config, CONFIG_FILE, CONFIG_PATH
     from .database import refresh_library, get_last_n_tracks, get_flac_lookup
     from .matching import get_playlist_tracks, perform_matching_with_review
-    from .metadata import normalize_string
 except ImportError:
     # If relative import fails, it means wizard.py is likely being run directly.
     # Adjust sys.path to allow absolute imports from the project root.
@@ -49,7 +47,6 @@ except ImportError:
     from sluttools.config import console, config, CONFIG_FILE, CONFIG_PATH
     from sluttools.database import refresh_library, get_last_n_tracks, get_flac_lookup
     from sluttools.matching import get_playlist_tracks, perform_matching_with_review
-    from sluttools.metadata import normalize_string
 
 
 # --- Configuration Wizard ---
