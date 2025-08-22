@@ -76,6 +76,13 @@ See docs/PROJECT_STRUCTURE.md for a full overview. In short:
 - Legacy/prototype materials are under `scripts/archive/`.
 - Generated files (e.g., playlists, local databases) are ignored by Git.
 
+### Repository cleanup and deprecations
+
+We are simplifying the repository to reduce duplication and archived code. Please see docs/REFACTOR_PROPOSAL.md for the full plan. In brief:
+- `slut-match` (sluttools/matcher_fast.py) is the recommended non-interactive matcher CLI.
+- `sluttools/matching.py` remains for interactive/advanced flows.
+- The `scripts/archive/` directory and a few wrappers/backups are slated for removal in an upcoming release. Avoid relying on archived scripts.
+
 ## Command Reference
 
 ### `get library`
