@@ -323,7 +323,7 @@ def _purge_vanished_files(cursor: sqlite3.Cursor, conn: sqlite3.Connection, libr
     purged_files = 0
     for path_str in db_paths:
         if not Path(path_str).exists():
-            cursor.execute("DELETE FROM flacs WHERE path = ?", (path_str,))
+            cursor.execute("DELETE FROM tracks WHERE file_path = ?", (path_str,))
             purged_files += 1
     
     if purged_files > 0:

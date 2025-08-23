@@ -56,7 +56,17 @@ A typical workflow involves refreshing the library and matching a playlist.
 1. **Refresh Your Library**: First, scan your music collection to create or update the local database. If it's your first time, this will trigger the setup wizard.
 
    ```bash
-   poetry run slut get library
+   sqlite3 "$DB" <<'SQL'
+CREATE TRIGGER IF NOT EXISTS flacs_ins
+INSTEAD OF INSERT ON flacs
+BEGIN
+  INSERT INTO tracks (file_path, artist, album, title, track_number, year, last_modified)
+  VALUES (NEW.path, NEW.artist, NEW.album, NEW.title,
+          CAST(NEW.trackno AS INTEGER),
+          CAST(NEW.year AS INTEGER),
+          datetime(NEW.mtime, 'unixepoch'));
+END;
+SQL
    ```
 2. **Match a Playlist**: Once the database is up-to-date, you can match a playlist.
 
@@ -78,12 +88,44 @@ See docs/PROJECT_STRUCTURE.md for a full overview. In short:
 
 ### Repository cleanup and deprecations
 
-We are simplifying the repository to reduce duplication and archived code. Please see docs/REFACTOR_PROPOSAL.md for the full plan. In brief:
+We have simplified the repository to reduce duplication and archived code. See docs/REFACTOR_PROPOSAL.md for the background. In brief:
 - `slut-match` (sluttools/matcher_fast.py) is the recommended non-interactive matcher CLI.
 - `sluttools/matching.py` remains for interactive/advanced flows.
-- The `scripts/archive/` directory and a few wrappers/backups are slated for removal in an upcoming release. Avoid relying on archived scripts.
+- Archived prototypes and wrapper/backups (previously under `scripts/archive/` and similar) have been removed. Avoid relying on archived scripts—use the packaged CLI entry points instead.
 
 ## Command Reference
+
+### `slut-match` (fast non-interactive matcher)
+
+Match a playlist file or a directory of audio files against your local FLAC library using a cached SQLite index.
+
+- Basic usage:
+  - poetry run slut-match match "/path/playlist.json"
+  - poetry run slut-match match "/path/playlist.m3u"
+  - poetry run slut-match match "/path/to/dir/of/audio"
+
+- Common options:
+  - --refresh [auto|yes|no]  Refresh the index (auto = only if stale; default)
+  - --library DIR            Override FLAC library root (defaults to SLUTTOOLS_FLAC_DIR or /Volumes/sad/MUSIC)
+  - --db FILE                Override SQLite DB path (defaults to SLUTTOOLS_FLAC_DB or ~/flibrary.db)
+  - --threshold INT          Override fuzzy accept threshold (else uses env AUTO_MATCH_THRESHOLD)
+
+- Views and output formatting:
+  - --view [compact|unmatched|full]
+    - compact: one-line table per input (default)
+    - unmatched: show only unmatched entries (prints “No unmatched tracks.” if none)
+    - full: verbose per-entry line including method, score, and key; can show top-K
+  - --topk INT              With --view full, show top K candidate scores (0 = off, default 5)
+  - --truncate INT          Max column width (default 80; 0 = no truncation)
+  - --path-col [basename|relative|full]  How to display matched path (default basename)
+  - --relative-root DIR     Base when using --path-col=relative
+  - --no-color              Disable rich colors (falls back to plain text)
+  - --print-paths           Print only matched paths to stdout (useful for piping)
+
+Examples:
+- poetry run slut-match match "/path/playlist.json" --refresh no --no-color --view compact
+- poetry run slut-match match "/path/playlist.json" --view unmatched --path-col relative --relative-root /Volumes/sad/MUSIC
+- poetry run slut-match match "/path/playlist.json" --view full --topk 5 --truncate 100
 
 ### `get library`
 

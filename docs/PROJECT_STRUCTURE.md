@@ -9,24 +9,24 @@ A quick guide to where things live and how to navigate the codebase.
   - cli.py — Typer CLI application (commands: get, match, out, list, config).
   - config.py — First-run config wizard defaults and dynamic loading.
   - database.py — Library indexing and SQLite interaction for the app.
-  - matching.py — Canonical playlist parsing and matching logic (use this).
-  - matcher.py — Deprecated low-level helpers (e.g., calculate_match_score) kept for compatibility.
+  - matching.py — Interactive/advanced matching workflows.
+  - matcher.py — Deprecated low-level helpers (kept for compatibility; may emit deprecation in future).
+  - matcher_fast.py — Fast non-interactive matcher; exposed as `slut-match`.
   - metadata.py — Normalization and metadata extraction helpers.
   - wizard.py — Rich/interactive setup and matching workflows.
-- scripts/ — Invokable helper scripts (prefer using these over root files).
+- scripts/ — Invokable helper scripts kept minimal (prefer CLI entry points via Poetry).
   - main.py — Thin wrapper to run the CLI; equivalent to `python -m sluttools`.
-  - tidal2qobuz.py — Wrapper that forwards to the legacy root script.
 - tests/ — Pytest suite.
 - docs/ — Additional documentation like this structure guide.
 
-Legacy or archived materials:
-- scripts/archive — Old prototypes kept for reference (e.g., g.py and gg.py). Not part of the active CLI.
+Removed legacy/archived materials (previously under scripts/archive):
+- Historical prototypes were removed to simplify the repo. See docs/REFACTOR_PROPOSAL.md for context.
 
 Ignored/ephemeral files:
 - json/ — Local outputs (ignored).
 - library.db — Example/temporary DB file (ignored).
 
 # Conventions
-- Use `pipx run slut` or `poetry run slut` to invoke the CLI.
-- Do not add new standalone Python scripts to the repository root. Place them under `scripts/` or implement as `sluttools` subcommands.
+- Use `pipx run slut` or `poetry run slut` to invoke the CLI; `poetry run slut-match` for the fast matcher.
+- Do not add new standalone Python scripts to the repository root. Prefer CLI subcommands or add a Poetry script entry.
 - Keep user data and generated files out of version control; add patterns to .gitignore.
