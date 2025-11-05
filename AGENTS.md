@@ -1,37 +1,52 @@
 # AGENTS.md
 
-# Contributor & Agent Guide for music-automation-toolkit
+# Contributor & Agent Guide for sluttools
 
 ## Overview
-This project uses a modern Python src/ layout, Poetry for dependency management, and includes robust linting, testing, and automation. Please follow the guidelines below for contributing, automation, and agent-based workflows.
+This project uses Poetry for dependency management and includes robust linting, testing, and automation. Please follow the guidelines below for contributing, automation, and agent-based workflows.
 
-## Dev Environment Tips
-- Use `pip install -e .` or `poetry install` to set up your environment.
-- Run `pre-commit install` after cloning to enable pre-commit hooks.
-- Use `pytest` to run tests. Coverage is enabled via `pytest-cov`.
-- Lint and format code with `black`, `flake8`, `isort`, and `mypy`.
+## Dev Environment Setup
+- Use `poetry install` to set up your environment
+- Run `poetry run pre-commit install` after cloning to enable pre-commit hooks
+- All dependencies and tool configurations are in `pyproject.toml`
+
+## Project Structure
+- **Package**: `sluttools/` - main package directory (6 core modules)
+- **Tests**: `tests/` - all test files
+- **Docs**: `docs/` - project documentation
+- **Config**: `pyproject.toml` (master config), `.pre-commit-config.yaml` (hooks only)
 
 ## Testing Instructions
-- All tests are in the `tests/` directory.
-- Run `pytest` for the full suite.
-- Coverage reports: `pytest --cov=music_automation`.
+- All tests are in the `tests/` directory
+- Run tests: `poetry run pytest`
+- With coverage: `poetry run pytest --cov=sluttools`
+- Tests use ThreadPoolExecutor to avoid multiprocessing pickle issues
 
-## Linting & Type Checking
-- Run all checks: `black . && isort . && flake8 . && mypy src/`.
-- Or use the provided Makefile or scripts (if present).
+## Linting & Formatting
+- **Black**: `poetry run black .` - code formatting
+- **isort**: `poetry run isort .` - import sorting
+- **flake8**: `poetry run flake8 .` - linting (using defaults)
+- **mypy**: `poetry run mypy sluttools/` - type checking (relaxed settings)
+- **Pre-commit**: `poetry run pre-commit run --all-files` - run all hooks
 
-## Automation
-- Use `setup_script.sh` to install the package in editable mode.
-- For agent workflows, this file provides context and instructions.
+Or just run pre-commit hooks: `poetry run pre-commit run --all-files`
 
-## Contribution
-- See `CONTRIBUTING.md` for more details.
-- Please add or update tests for any code you change.
+## Running the CLI
+- Interactive: `poetry run slut` or `python -m sluttools`
+- Commands: `poetry run slut --help`
+- Main commands: `get library`, `match auto`, `match review`, `config edit`
+
+## Contribution Guidelines
+- See `CONTRIBUTING.md` for detailed contribution process
+- Add or update tests for any code changes
+- Run linters before committing (pre-commit hooks help with this)
+- Follow existing code style and structure
 
 ---
 
 # Agent Instructions
-- Explore the `src/` directory for main code.
-- Use `pyproject.toml` for dependency and tool configuration.
-- Run tests and linters before submitting changes.
-- See this file for project-specific automation and CI tips.
+- Main code is in `sluttools/` directory (not `src/`)
+- Use `pyproject.toml` for all dependency and tool configuration
+- Run tests and linters before submitting changes
+- Entry points: `slut` (Typer CLI), `fla` (argparse wrapper)
+- Configuration: All in `pyproject.toml` - no separate config files needed

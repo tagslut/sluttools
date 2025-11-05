@@ -7,6 +7,19 @@
 - **Breaking**: Removed `slut-match` standalone command. Use `slut match auto` for non-interactive matching or `slut match review` for interactive matching instead.
 - **Breaking**: Removed `sluttools/wizard.py` module. Configuration wizard functionality is now inline in `slut config edit`, and matching wizard functionality is provided by `slut match review`.
 - **Refactor**: Merged `sluttools/metadata.py` into `sluttools/database.py`. All metadata extraction utilities (normalize_string, gather_metadata, parse_filename_structure) are now in the database module where they logically belong as part of the data layer.
+- **Cleanup**: Removed redundant configuration files:
+  - `tox.ini` → obsolete, using Poetry instead of tox for dependency management
+  - `Makefile` → obsolete, contained outdated commands (slut-match) and wrong paths
+  - `mypy.ini` → duplicate of `[tool.mypy]` section in pyproject.toml
+  - `.flake8` → ignores most flake8 rules anyway, using minimal defaults via pre-commit
+  - `requirements.txt` → obsolete, Poetry manages all dependencies via pyproject.toml
+- **Cleanup**: Removed boilerplate files not needed for private project:
+  - `CODE_OF_CONDUCT.md` → generic Contributor Covenant boilerplate
+  - `CONTRIBUTING.md` → unnecessary for private project
+  - `LICENSE` → private project, no license needed
+  - `SECURITY.md` → unnecessary for private project
+- **Docs**: Updated `AGENTS.md` to reflect current project structure (sluttools/ not src/, Poetry-based workflow, correct commands)
+- **Docs**: Updated `.env.example` to use current SLUT_* environment variable naming scheme and remove obsolete variables
 - **Cleanup**: Removed redundant scripts:
   - `sluttools/example_usage.py` → moved to `examples/`
   - `sluttools/match_visualizer.py` → functionality integrated into `sluttools/matching.py`
