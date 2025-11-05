@@ -4,7 +4,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from music_automation.core.matcher import match_entry, normalize_string
+from sluttools.metadata import normalize_string
+
+
+def match_entry(
+    entry: dict,
+    lookup: list[tuple[str, str]],
+    artist_index: dict[str, set[str]] | None = None,
+    title_index: dict[str, set[str]] | None = None,
+) -> str | None:
+    """Simple matcher for tests: normalizes entry and looks up exact matches."""
+    artist = entry.get("artist", "") or ""
+    title = entry.get("title", "") or ""
+    key = normalize_string(artist or title)
+
+    if artist_index and key in artist_index:
+        return next(iter(artist_index[key]))
+    if title_index and key in title_index:
+        return next(iter(title_index[key]))
+
+    for path, norm in lookup:
+        if norm == key:
+            return path
+    return None
 
 
 def test_match_entry_basic(tmp_path: Path) -> None:

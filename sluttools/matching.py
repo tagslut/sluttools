@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import re
+import unicodedata
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -26,10 +28,217 @@ except Exception:
 
 
 from .config import config, console
-from .matcher import calculate_match_score
 from .metadata import normalize_string, parse_filename_structure
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Scoring Logic (migrated from matcher.py)
+# ============================================================================
+
+_JUNK_TOKENS = {
+    "ep",
+    "remix",
+    "mix",
+    "version",
+    "edit",
+    "original",
+    "single",
+    "album",
+    "live",
+    "feat",
+    "featuring",
+    "feat.",
+    "vs",
+    "vol",
+    "vol.",
+    "pt",
+    "pt.",
+    "part",
+    "deluxe",
+    "remastered",
+    "remaster",
+    "bonus",
+    "instrumental",
+    "mono",
+    "stereo",
+}
+
+_SERIES_HINTS = {
+    "adult only",
+    "new path",
+    "fafep010",
+    "signatune core",
+    "nuances de nuit",
+}
+
+
+def _norm(s: str, field: str | None = None) -> str:
+    """Normalize string for matching with field-specific rules."""
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s).lower()
+    s = s.replace("&", " and ").replace("+", " and ").replace("|", " ")
+    s = re.sub(r"[''`]", "'", s)
+    # Keep catalog-ish tags like BP SINGLE TRACK #123 but strip most bracket noise
+    s = re.sub(r"\(.*?\)(?!bp single track).*?|\[.*?\]|\{.*?\}", " ", s)
+    s = re.sub(r"[^a-z0-9' ]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    # Album-specific normalization: strip common suffixes
+    if field == "album":
+        s = re.sub(
+            r"( - (ep|single|album|remaster|deluxe|edition|reissue|expanded|bonus|mono|stereo))$",
+            "",
+            s,
+        )
+    return s
+
+
+def _tokens(s: str, field: str | None = None):
+    """Split into core and junk tokens."""
+    toks = [t for t in _norm(s, field=field).split() if t]
+    core = [t for t in toks if t not in _JUNK_TOKENS]
+    junk = [t for t in toks if t in _JUNK_TOKENS]
+    return core, junk
+
+
+def _ordered_phrase_score(a: str, b: str) -> float:
+    """Score based on ordered word matching."""
+    na, nb = _norm(a), _norm(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    if na in nb:
+        return 0.9
+    ac = na.split()
+    bc = nb.split()
+    if len(ac) == 1 and ac[0] in bc:
+        return 0.7
+    i = j = m = 0
+    while i < len(ac) and j < len(bc):
+        if ac[i] == bc[j]:
+            m += 1
+            i += 1
+            j += 1
+        else:
+            j += 1
+    base = m / max(len(ac), 1)
+    return base * 0.8
+
+
+def _token_overlap_score(a: str, b: str, *, field: str | None = None) -> float:
+    """Score based on token overlap (Jaccard-like)."""
+    ac, aj = _tokens(a, field=field)
+    bc, bj = _tokens(b, field=field)
+    if not ac or not bc:
+        return 0.0
+    set_a, set_b = set(ac), set(bc)
+    jacc = len(set_a & set_b) / max(len(set_a | set_b), 1)
+    junk = 0.2 * (len(set(aj) & set(bj)) / max(len(set(aj) | set(bj)) or 1, 1))
+    return min(1.0, jacc + junk)
+
+
+def _series_hint_bonus(a: str, b: str) -> float:
+    """Bonus for matching series/compilation hints."""
+    an, bn = _norm(a), _norm(b)
+    for h in _SERIES_HINTS:
+        if h in an and h in bn:
+            return 0.3
+    return 0.0
+
+
+def calculate_match_score(source, candidate):
+    """
+    Calculate match score between source and candidate tracks.
+
+    Args:
+        source: dict with keys: artist, title, album, year, duration, path
+        candidate: dict with keys: artist, title, album, year, duration, path
+
+    Returns:
+        Score in [0, 100]
+    """
+    title_dir = _ordered_phrase_score(
+        source.get("title", ""), candidate.get("title", "")
+    )
+    title_tok = _token_overlap_score(
+        source.get("title", ""), candidate.get("title", "")
+    )
+    # Improved artist matching: substring or token inclusion counts as strong match
+    src_artist = source.get("artist", "")
+    cand_artist = candidate.get("artist", "")
+    artist_dir = _ordered_phrase_score(src_artist, cand_artist)
+    artist_tok = _token_overlap_score(src_artist, cand_artist)
+    artist_bias = 0.0
+    # New: if src_artist is a substring or token in cand_artist, count as strong match
+    norm_src_artist = _norm(src_artist)
+    norm_cand_artist = _norm(cand_artist)
+    if norm_src_artist and norm_src_artist in norm_cand_artist:
+        artist_dir = 1.0
+        artist_tok = 1.0
+    elif norm_src_artist and any(
+        tok == norm_src_artist for tok in norm_cand_artist.split()
+    ):
+        artist_dir = 1.0
+        artist_tok = 1.0
+    if artist_dir >= 0.9 or artist_tok >= 0.9:
+        artist_bias += 0.20
+    elif artist_tok < 0.3 and artist_dir < 0.3:
+        artist_bias -= 0.15
+    # Album normalization: pass field='album' to token overlap
+    album_tok = _token_overlap_score(
+        source.get("album", ""), candidate.get("album", ""), field="album"
+    )
+    # Series hints: fall back to raw path text if album/title missing
+    series_left = (
+        (source.get("album", "") + " " + source.get("title", "")).strip()
+        or source.get("path", "")
+        or ""
+    )
+    series_right = (
+        (candidate.get("album", "") + " " + candidate.get("title", "")).strip()
+        or candidate.get("path", "")
+        or ""
+    )
+    series_bonus = _series_hint_bonus(series_left, series_right)
+    year_bonus = 0.0
+    sy, cy = source.get("year"), candidate.get("year")
+    if isinstance(sy, int) and isinstance(cy, int):
+        dy = abs(sy - cy)
+        if dy <= 2:
+            year_bonus += 0.06
+        elif dy > 5:
+            year_bonus -= 0.06
+    dur_bonus = 0.0
+    sd, cd = source.get("duration"), candidate.get("duration")
+    if (
+        isinstance(sd, (int, float))
+        and isinstance(cd, (int, float))
+        and sd > 0
+        and cd > 0
+    ):
+        diff = abs(sd - cd) / max(sd, cd)
+        if diff <= 0.05:
+            dur_bonus += 0.10
+        elif diff <= 0.10:
+            dur_bonus += 0.05
+        elif diff >= 0.25:
+            dur_bonus -= 0.08
+    base = (
+        0.55 * title_dir
+        + 0.20 * title_tok
+        + 0.15 * max(artist_dir, artist_tok)
+        + 0.05 * album_tok
+    )
+    score = base + artist_bias + series_bonus + year_bonus + dur_bonus
+    return max(0, min(100, round(score * 100, 1)))
+
+
+# ============================================================================
+# Matching Functions
+# ============================================================================
 
 
 def _filter_flac_lookup(flac_lookup: list[tuple[str, str]]) -> list[tuple[str, str]]:

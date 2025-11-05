@@ -72,8 +72,6 @@ A typical workflow involves refreshing the library and matching a playlist.
 See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a full overview. In short:
 
 - Core app code is in the `sluttools/` package.
-- Helper scripts live in `scripts/`.
-- Legacy/prototype materials are under `scripts/archive/`.
 - Generated files (e.g., playlists, local databases) are ignored by Git.
 
 ### Repository cleanup and deprecations
@@ -81,7 +79,7 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a full overview. 
 We have simplified the repository to reduce duplication and archived code. See docs/REFACTOR_PROPOSAL.md for the background. In brief:
 - `slut-match` (sluttools/matcher_fast.py) is the recommended non-interactive matcher CLI.
 - `sluttools/matching.py` remains for interactive/advanced flows.
-- Archived prototypes and wrapper/backups (previously under `scripts/archive/` and similar) have been removed. Avoid relying on archived scripts—use the packaged CLI entry points instead.
+- Standalone utilities (qobuz_auth.py, tidal2qobuz.py) and archived prototypes have been removed. Use the packaged CLI entry points instead.
 
 ## Command Reference
 
@@ -225,42 +223,6 @@ How to run it:
 Notes:
 - Press Ctrl+C at any time to abort while using the wizard.
 - The wizard uses your existing configuration (see USAGE-CONFIG.md) and respects thresholds THRESHOLD_AUTO_MATCH and THRESHOLD_REVIEW_MIN.
-
-## Standalone Utilities
-
-### `tidal2qobuz.py`
-
-This project also includes a standalone script for mapping Tidal URLs to their Qobuz equivalents.
-
-**Features:**
-
-- Converts Tidal track, album, or playlist URLs.
-- Uses intelligent parsing and fuzzy matching to find the best Qobuz match.
-- Securely stores credentials in your system's Keychain for authenticated API requests.
-
-**Setup:**
-
-This script requires the `keyring` library and your Qobuz credentials.
-
-1. **Install the dependency:**
-   ```bash
-   pip install keyring
-   ```
-2. **Store your credentials:**
-   Run the following commands in your terminal. You will be prompted to enter each credential. This only needs to be done once.
-   ```bash
-   # Store your Qobuz App ID
-   keyring set sluttools.tidal2qobuz qobuz_app_id
-
-   # Store your Qobuz User Auth Token
-   keyring set sluttools.tidal2qobuz qobuz_user_auth_token
-   ```
-
-**Usage:**
-
-```bash
-python tidal2qobuz.py "https://tidal.com/track/..."
-```
 
 ## Development
 

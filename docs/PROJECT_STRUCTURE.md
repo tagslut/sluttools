@@ -9,18 +9,18 @@ A quick guide to where things live and how to navigate the codebase.
   - cli.py — Typer CLI application (commands: get, match, out, list, config).
   - config.py — First-run config wizard defaults and dynamic loading.
   - database.py — Library indexing and SQLite interaction for the app.
-  - matching.py — Interactive/advanced matching workflows.
-  - matcher.py — Deprecated low-level helpers (kept for compatibility; may emit deprecation in future).
+  - matching.py — Interactive/advanced matching workflows with integrated scoring logic.
   - matcher_fast.py — Fast non-interactive matcher; exposed as `slut-match`.
   - metadata.py — Normalization and metadata extraction helpers.
   - wizard.py — Rich/interactive setup and matching workflows.
-- scripts/ — Invokable helper scripts kept minimal (prefer CLI entry points via Poetry).
-  - main.py — Thin wrapper to run the CLI; equivalent to `python -m sluttools`.
 - tests/ — Pytest suite.
+- examples/ — Example usage scripts and migration guides.
 - docs/ — Additional documentation like this structure guide, configuration notes, and refactor proposals.
 
-Removed legacy/archived materials (previously under scripts/archive):
-- Historical prototypes were removed to simplify the repo. See docs/REFACTOR_PROPOSAL.md for context.
+Removed legacy/archived materials:
+- scripts/ directory — Removed; all functionality moved to CLI entry points.
+- Standalone utilities (qobuz_auth.py, tidal2qobuz.py) — Removed; not integrated with core functionality.
+- Historical prototypes and compatibility shims — Removed to simplify the repo. See docs/REFACTOR_PROPOSAL.md for context.
 
 Ignored/ephemeral files:
 - json/ — Local outputs (ignored).
