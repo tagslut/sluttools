@@ -445,7 +445,7 @@ def _interactive_export_menu(
             "MATCH_OUTPUT_PATH_M3U", f"{playlist_name}_matched.m3u"
         )
         default_path = str(
-            Path.cwd() / default_path_template.format(playlist_name=playlist_name)
+            Path.cwd() / str(default_path_template).format(playlist_name=playlist_name)
         )
         output_path = Prompt.ask("Path for M3U file?", default=default_path)
         write_match_m3u(matches, output_path)
