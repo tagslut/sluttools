@@ -8,11 +8,8 @@ A quick guide to where things live and how to navigate the codebase.
   - __main__.py — Enables `python -m sluttools`.
   - cli.py — Typer CLI application (commands: get, match, out, list, config).
   - config.py — First-run config wizard defaults and dynamic loading.
-  - database.py — Library indexing and SQLite interaction for the app.
+  - database.py — Library indexing, SQLite interaction, and metadata extraction utilities.
   - matching.py — Interactive/advanced matching workflows with integrated scoring logic.
-  - matcher_fast.py — Fast non-interactive matcher; exposed as `slut-match`.
-  - metadata.py — Normalization and metadata extraction helpers.
-  - wizard.py — Rich/interactive setup and matching workflows.
 - tests/ — Pytest suite.
 - examples/ — Example usage scripts and migration guides.
 - docs/ — Additional documentation like this structure guide, configuration notes, and refactor proposals.

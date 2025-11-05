@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sluttools.metadata import normalize_string
+from sluttools.database import normalize_string
 
 
 def match_entry(

@@ -77,9 +77,15 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a full overview. 
 ### Repository cleanup and deprecations
 
 We have simplified the repository to reduce duplication and archived code. See docs/REFACTOR_PROPOSAL.md for the background. In brief:
-- `slut-match` (sluttools/matcher_fast.py) is the recommended non-interactive matcher CLI.
-- `sluttools/matching.py` remains for interactive/advanced flows.
+- `slut match` provides both non-interactive (`auto`) and interactive (`review`) matching modes.
+- `sluttools/matching.py` contains the core matching logic with integrated scoring algorithm.
 - Standalone utilities (qobuz_auth.py, tidal2qobuz.py) and archived prototypes have been removed. Use the packaged CLI entry points instead.
+
+## Command Reference
+
+### `get library`
+
+Scans the directories listed in your configuration and updates the track database.
 
 ## Command Reference
 
@@ -206,22 +212,18 @@ See USAGE-CONFIG.md for the full schema and examples.
 
 ## Interactive Wizard
 
-The project includes an optional full-screen interactive wizard, built with Rich, that provides a guided experience for both initial configuration and playlist matching.
+The CLI includes interactive prompts built with Rich that provide a guided experience for both initial configuration and playlist matching.
 
 What it does:
 - Configuration wizard: step-by-step setup of library paths, DB path, output locations, and thresholds. Saves to ~/.config/sluttools/config.json.
-- Matching wizard: prompts for a playlist file, optionally refreshes the FLAC library index, performs matching with interactive review, and offers to export M3U and JSON using your configured templates (MATCH_OUTPUT_PATH_M3U and MATCH_OUTPUT_PATH_JSON, which may include {playlist_name}).
+- Matching wizard: prompts for interactive review of matches, offers manual search/override, and exports M3U and JSON using your configured templates (MATCH_OUTPUT_PATH_M3U and MATCH_OUTPUT_PATH_JSON, which may include {playlist_name}).
 
 How to run it:
-- Via CLI (preferred):
-  - Configuration: poetry run slut config edit
-  - Interactive matching: poetry run slut match review <PLAYLIST_INPUT>
-- Direct module (useful for development/testing):
-  - poetry run python -m sluttools.wizard --mode config
-  - poetry run python -m sluttools.wizard --mode match
+- Configuration: `poetry run slut config edit`
+- Interactive matching: `poetry run slut match review <PLAYLIST_INPUT>`
 
 Notes:
-- Press Ctrl+C at any time to abort while using the wizard.
+- Press Ctrl+C at any time to abort the wizard.
 - The wizard uses your existing configuration (see USAGE-CONFIG.md) and respects thresholds THRESHOLD_AUTO_MATCH and THRESHOLD_REVIEW_MIN.
 
 ## Development

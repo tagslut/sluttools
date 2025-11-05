@@ -59,7 +59,6 @@ mypy = "^1.8.0"
 [tool.poetry.scripts]
 fla = "sluttools.cli:main"
 slut = "sluttools.cli:app"
-slut-match = "sluttools.matcher_fast:main"
 
 [tool.black]
 line-length = 88

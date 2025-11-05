@@ -1,5 +1,5 @@
-# sluttools/cli.py
 import asyncio
+import json
 import os
 import time
 from pathlib import Path
@@ -13,7 +13,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.text import Text
 
-from .config import config
+from .config import CONFIG_FILE, CONFIG_PATH, config
 from .database import get_flac_lookup, refresh_library
 from .matching import (
     find_matches,
@@ -23,7 +23,6 @@ from .matching import (
     write_match_m3u,
     write_songshift_json,
 )
-from .wizard import launch_config_wizard, launch_matching_wizard
 
 app = typer.Typer(help="Get. Match. Tag. Out.")
 
@@ -149,13 +148,81 @@ def safe_confirm(prompt_text, default=True):
 @app.command(hidden=True)
 def wizard():
     """Deprecated: use 'slut match review' instead."""
-    launch_matching_wizard()
+    console.print(
+        "[yellow]The wizard command is deprecated. Use 'slut match review' instead.[/yellow]"
+    )
+    raise typer.Exit(1)
 
 
 @config_app.command(name="edit")
 def config_edit():
     """Run the interactive setup wizard to configure the application."""
-    launch_config_wizard()
+    console.clear()
+    console.print("[bold green]Welcome to sluttools! Let's set things up.[/bold green]")
+
+    # 1. Library Roots
+    console.print("\n[bold]Enter the absolute paths to your music libraries.[/bold]")
+    console.print("Enter one path per line. Press Enter on an empty line to finish.")
+    library_roots = []
+    while True:
+        path = safe_prompt("Library path").strip()
+        if not path:
+            if library_roots:
+                break
+            else:
+                console.print("[red]You must add at least one library path.[/red]")
+                continue
+        if os.path.isdir(path):
+            library_roots.append(path)
+            console.print(f"[cyan]Added: {path}[/cyan]")
+        else:
+            console.print(f"[red]Error: '{path}' is not a valid directory.[/red]")
+
+    # 2. DB Path
+    default_db_path = str(CONFIG_FILE.parent / "sluttools.db")
+    db_path = safe_prompt(
+        "[bold]Enter the path for the database file[/bold]", default=default_db_path
+    )
+
+    # 3. M3U Path
+    default_m3u_path = str(Path.home() / "Music/Playlists/{playlist_name}.m3u")
+    m3u_path = safe_prompt(
+        "[bold]Enter the output path for M3U playlists[/bold]", default=default_m3u_path
+    )
+
+    # 4. JSON Path
+    default_json_path = str(
+        Path.home() / "Music/Playlists/{playlist_name}_unmatched.json"
+    )
+    json_path = safe_prompt(
+        "[bold]Enter the output path for JSON reports[/bold]", default=default_json_path
+    )
+
+    # 5. Thresholds
+    threshold_auto = safe_prompt(
+        "[bold]Enter the auto-match threshold (0-100)[/bold]", default="85"
+    )
+    review_min = safe_prompt(
+        "[bold]Enter the minimum score for manual review (0-100)[/bold]", default="75"
+    )
+
+    # Create config dictionary
+    new_config = {
+        "LIBRARY_ROOTS": library_roots,
+        "DB_PATH": db_path,
+        "MATCH_OUTPUT_PATH_M3U": m3u_path,
+        "MATCH_OUTPUT_PATH_JSON": json_path,
+        "THRESHOLD_AUTO_MATCH": int(threshold_auto),
+        "THRESHOLD_REVIEW_MIN": int(review_min),
+    }
+
+    # Save config file
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(new_config, f, indent=4)
+
+    console.print(f"\n[bold green]✓ Configuration saved to {CONFIG_PATH}[/bold green]")
+    console.print("You can run 'slut config edit' again to change these settings.")
 
 
 @config_app.command(name="show")

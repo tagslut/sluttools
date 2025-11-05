@@ -11,7 +11,9 @@ from typing import Iterable
 import pytest
 
 from sluttools import database as db_module
-from sluttools import metadata as metadata_module
+
+# metadata module is now merged into database
+metadata_module = db_module
 
 
 def get_problematic_sample_rates(db_path: str) -> list[int]:

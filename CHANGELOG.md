@@ -4,6 +4,9 @@
 - **Breaking**: Removed `music_automation/` compatibility shim directory. Tests now import directly from `sluttools` modules.
 - **Breaking**: Removed deprecated `sluttools/matcher.py` module. Scoring logic merged into `sluttools/matching.py`.
 - **Breaking**: Removed standalone utility scripts `qobuz_auth.py` and `tidal2qobuz.py`. These were separate tools not integrated with the main CLI.
+- **Breaking**: Removed `slut-match` standalone command. Use `slut match auto` for non-interactive matching or `slut match review` for interactive matching instead.
+- **Breaking**: Removed `sluttools/wizard.py` module. Configuration wizard functionality is now inline in `slut config edit`, and matching wizard functionality is provided by `slut match review`.
+- **Refactor**: Merged `sluttools/metadata.py` into `sluttools/database.py`. All metadata extraction utilities (normalize_string, gather_metadata, parse_filename_structure) are now in the database module where they logically belong as part of the data layer.
 - **Cleanup**: Removed redundant scripts:
   - `sluttools/example_usage.py` → moved to `examples/`
   - `sluttools/match_visualizer.py` → functionality integrated into `sluttools/matching.py`
@@ -12,6 +15,9 @@
   - `sluttools/package_manager_setup.sh` → trivial wrapper around `poetry install`
   - `scripts/main.py` → equivalent to `python -m sluttools`
   - `sluttools/matcher.py` → scoring logic merged into `matching.py`
+  - `sluttools/matcher_fast.py` → duplicate functionality, use `slut match auto/review` instead
+  - `sluttools/wizard.py` → duplicate functionality, use `slut config edit` and `slut match review` instead
+  - `sluttools/metadata.py` → merged into `database.py`
   - `qobuz_auth.py` → standalone Qobuz auth helper (not part of core functionality)
   - `tidal2qobuz.py` → standalone Tidal-to-Qobuz mapper (not part of core functionality)
   - `scripts/` directory → now empty, removed

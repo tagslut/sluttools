@@ -28,7 +28,7 @@ except Exception:
 
 
 from .config import config, console
-from .metadata import normalize_string, parse_filename_structure
+from .database import normalize_string, parse_filename_structure
 
 logger = logging.getLogger(__name__)
 
