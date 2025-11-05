@@ -1,11 +1,12 @@
 """Compatibility shim for tests expecting music_automation.core.matcher"""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, Optional
 
-from sluttools.metadata import normalize_string as _normalize
 from sluttools.matcher import calculate_match_score
+from sluttools.metadata import normalize_string as _normalize
 
 
 def normalize_string(s: str) -> str:

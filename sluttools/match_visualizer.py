@@ -2,12 +2,13 @@
 import os
 import re
 import unicodedata
+
 from rich.console import Console
-from rich.table import Table
-from rich.text import Text
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
+from rich.table import Table
+from rich.text import Text
 
 # Import fuzzy matching functions
 try:
@@ -21,6 +22,7 @@ try:
 
     def token_set_ratio(a, b):
         return rf_fuzz.token_set_ratio(a, b)
+
 except ImportError:
     from fuzzywuzzy import fuzz as fw_fuzz  # slower fallback
 
@@ -33,14 +35,21 @@ except ImportError:
     def token_set_ratio(a, b):
         return fw_fuzz.token_set_ratio(a, b)
 
+
 console = Console()
+
 
 def normalize_string(s: str) -> str:
     """Normalize string for comparison (copied from archive/gg.py)"""
     if not s:
         return ""
-    s = "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")
+    s = "".join(
+        c
+        for c in unicodedata.normalize("NFD", s.lower())
+        if unicodedata.category(c) != "Mn"
+    )
     return re.sub(r"[^\w\s]+", " ", s).strip()
+
 
 def combined_fuzzy_ratio(s1, s2):
     """Calculate a combined fuzzy ratio using multiple metrics"""
@@ -48,6 +57,7 @@ def combined_fuzzy_ratio(s1, s2):
     r2 = partial_ratio(s1, s2)
     r3 = token_set_ratio(s1, s2)
     return (r1 + r2 + r3) / 3
+
 
 def visualize_match_scores(entry, candidates, auto_threshold, top_n=5):
     """Visualize the match scores for a track"""
@@ -76,28 +86,29 @@ def visualize_match_scores(entry, candidates, auto_threshold, top_n=5):
 
     # Display top N results
     for i, (path, score, combined, norm) in enumerate(scored_candidates[:top_n], 1):
-        match_type = "[green]AUTO[/green]" if score >= auto_threshold else "[yellow]MANUAL[/yellow]"
+        match_type = (
+            "[green]AUTO[/green]"
+            if score >= auto_threshold
+            else "[yellow]MANUAL[/yellow]"
+        )
         file_name = os.path.basename(path)
 
         # Highlight parts that match
         highlighted_path = Text(file_name)
 
-        table.add_row(
-            str(i),
-            f"{score:.1f}%",
-            f"{combined:.1f}%",
-            match_type,
-            path
-        )
+        table.add_row(str(i), f"{score:.1f}%", f"{combined:.1f}%", match_type, path)
 
     console.print(table)
-    console.print(Panel(
-        f"[cyan]Search normalized: [bold]{search_norm}[/bold][/cyan]\n"
-        f"[yellow]Auto-match threshold: {auto_threshold}%[/yellow]",
-        title="Match Details"
-    ))
+    console.print(
+        Panel(
+            f"[cyan]Search normalized: [bold]{search_norm}[/bold][/cyan]\n"
+            f"[yellow]Auto-match threshold: {auto_threshold}%[/yellow]",
+            title="Match Details",
+        )
+    )
 
     return scored_candidates
+
 
 def build_search_string(entry):
     """Build search string from entry fields (copied from archive/gg.py)"""
@@ -108,13 +119,16 @@ def build_search_string(entry):
             parts.append(val)
     return " ".join(parts).strip()
 
+
 def interactive_match_selection(entry, flac_lookup, auto_threshold=65):
     """Interactive matching with visualization of scoring process"""
     search_str = build_search_string(entry)
     if not search_str:
         return None
 
-    console.print(f"\n[bold cyan]Matching track: [/bold cyan][yellow]{search_str}[/yellow]")
+    console.print(
+        f"\n[bold cyan]Matching track: [/bold cyan][yellow]{search_str}[/yellow]"
+    )
 
     # First pass - calculate scores and find potential auto-match
     search_norm = normalize_string(search_str)
@@ -124,7 +138,7 @@ def interactive_match_selection(entry, flac_lookup, auto_threshold=65):
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        transient=True
+        transient=True,
     ) as progress:
         task = progress.add_task("Analyzing match scores...", total=None)
         for orig, norm in flac_lookup:
@@ -138,15 +152,21 @@ def interactive_match_selection(entry, flac_lookup, auto_threshold=65):
 
     # Determine if we have an automatic match
     if best_score >= auto_threshold:
-        console.print(f"[bold green]✓ Auto-matched[/bold green] (score: {best_score:.1f}%): {best_path}")
+        console.print(
+            f"[bold green]✓ Auto-matched[/bold green] (score: {best_score:.1f}%): {best_path}"
+        )
         return best_path
 
     # No auto-match, prompt for manual selection
-    console.print(f"[bold yellow]No automatic match found[/bold yellow] (best score: {best_score:.1f}%)")
+    console.print(
+        f"[bold yellow]No automatic match found[/bold yellow] (best score: {best_score:.1f}%)"
+    )
 
     # Offer manual matching options
     console.print("Options: [1-5] select match, [s] skip, [m] manual path entry")
-    choice = Prompt.ask("Your choice", choices=["1", "2", "3", "4", "5", "s", "m"], default="s")
+    choice = Prompt.ask(
+        "Your choice", choices=["1", "2", "3", "4", "5", "s", "m"], default="s"
+    )
 
     if choice == "s":
         return None

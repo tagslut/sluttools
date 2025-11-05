@@ -1,10 +1,10 @@
 import json
-import os
-from pathlib import Path
 import logging
+import os
 from collections import Counter
-from typing import List, Tuple
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import List, Tuple
 
 from rich.progress import Progress
 from rich.prompt import Prompt
@@ -13,18 +13,21 @@ from thefuzz import process as fuzzy_process
 # Prefer rapidfuzz for direct ratio scoring if available
 try:
     from rapidfuzz import fuzz as rf_fuzz  # type: ignore
+
     def _rf_ratio(a: str, b: str) -> float:
         return float(rf_fuzz.ratio(a, b))
+
 except Exception:
     # Fallback to thefuzz ratio
     from thefuzz import fuzz as _fw_fuzz  # type: ignore
+
     def _rf_ratio(a: str, b: str) -> float:
         return float(_fw_fuzz.ratio(a, b))
 
-from .config import console, config
-from .metadata import normalize_string
+
+from .config import config, console
 from .matcher import calculate_match_score
-from .metadata import parse_filename_structure
+from .metadata import normalize_string, parse_filename_structure
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +45,24 @@ def _filter_flac_lookup(flac_lookup: list[tuple[str, str]]) -> list[tuple[str, s
         filtered.append((path, norm))
     return filtered
 
+
 def parse_m3u(path: Path) -> list[str]:
     """Parses a simple M3U or M3U8 playlist file."""
-    with open(path, 'r', encoding='utf-8') as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
 
 def parse_json_playlist(path: Path) -> list[str]:
     """Parses a JSON file containing track information."""
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict) and "tracks" in data[0]:
+    if (
+        isinstance(data, list)
+        and len(data) > 0
+        and isinstance(data[0], dict)
+        and "tracks" in data[0]
+    ):
         data = data[0]["tracks"]
     elif isinstance(data, dict) and "tracks" in data:
         data = data["tracks"]
@@ -62,12 +72,15 @@ def parse_json_playlist(path: Path) -> list[str]:
     tracks = []
     for track in data:
         if isinstance(track, dict):
-            parts = [track.get(k, '').strip() for k in ['artist', 'album', 'title', 'track']]
-            search_string = ' '.join(filter(None, parts))
+            parts = [
+                track.get(k, "").strip() for k in ["artist", "album", "title", "track"]
+            ]
+            search_string = " ".join(filter(None, parts))
             tracks.append(search_string or str(track))
         else:
             tracks.append(str(track))
     return tracks
+
 
 def get_playlist_tracks(playlist_input: str) -> list[str] | None:
     path = Path(playlist_input)
@@ -77,13 +90,14 @@ def get_playlist_tracks(playlist_input: str) -> list[str] | None:
 
     if path.is_dir():
         from .database import scan_audio_files
+
         console.print(f"[green]Scanning directory for audio files: {path}[/green]")
         return [str(p) for p in scan_audio_files(path)]
 
     suffix = path.suffix.lower()
-    if suffix in ('.m3u', '.m3u8', '.txt'):
+    if suffix in (".m3u", ".m3u8", ".txt"):
         return parse_m3u(path)
-    elif suffix == '.json':
+    elif suffix == ".json":
         return parse_json_playlist(path)
     else:
         console.print(f"[red]Unsupported playlist format: {suffix}[/red]")
@@ -92,10 +106,10 @@ def get_playlist_tracks(playlist_input: str) -> list[str] | None:
 
 async def run_matcher(path_in, mode, out, manual, library, threshold, title_threshold):
     """Orchestrates the matching process based on arguments."""
-    from .database import refresh_library, get_flac_lookup
+    from .database import get_flac_lookup, refresh_library
 
     console.print(f"[cyan]Refreshing library index for {library}...[/cyan]")
-    refresh_library(db_path_str=config['DB_PATH'], library_dir_str=library)
+    refresh_library(db_path_str=config["DB_PATH"], library_dir_str=library)
 
     tracks = get_playlist_tracks(path_in)
     if not tracks:
@@ -105,30 +119,45 @@ async def run_matcher(path_in, mode, out, manual, library, threshold, title_thre
 
     if manual:
         perform_matching_with_review(
-            tracks, flac_lookup, playlist_input=path_in,
-            threshold=threshold, review_min=title_threshold
+            tracks,
+            flac_lookup,
+            playlist_input=path_in,
+            threshold=threshold,
+            review_min=title_threshold,
         )
     else:
         matches = find_matches(
-            tracks, flac_lookup, playlist_input=path_in,
-            threshold=threshold, review_min=title_threshold, interactive=False
+            tracks,
+            flac_lookup,
+            playlist_input=path_in,
+            threshold=threshold,
+            review_min=title_threshold,
+            interactive=False,
         )
 
         # Non-interactive export
         playlist_name = Path(path_in).stem
         matched_count = len([m for m in matches.values() if m])
         unmatched_count = len(tracks) - matched_count
-        console.print(f"[bold green]{matched_count} matched[/bold green], [bold red]{unmatched_count} unmatched[/bold red]")
+        console.print(
+            f"[bold green]{matched_count} matched[/bold green], [bold red]{unmatched_count} unmatched[/bold red]"
+        )
 
-        if out in ('m3u', 'both') and matched_count > 0:
-            out_path_m3u = str(config.get('MATCH_OUTPUT_PATH_M3U', '{playlist_name}.m3u')).format(playlist_name=playlist_name)
+        if out in ("m3u", "both") and matched_count > 0:
+            out_path_m3u = str(
+                config.get("MATCH_OUTPUT_PATH_M3U", "{playlist_name}.m3u")
+            ).format(playlist_name=playlist_name)
             write_match_m3u(matches, output_path=out_path_m3u)
             console.print(f"[bold green]✓ Wrote M3U:[/bold green] {out_path_m3u}")
 
-        if out in ('csv', 'both'): # 'csv' is mapped to JSON as per implementation.
-            out_path_json = str(config.get('MATCH_OUTPUT_PATH_JSON', '{playlist_name}_matches.json')).format(playlist_name=playlist_name)
+        if out in ("csv", "both"):  # 'csv' is mapped to JSON as per implementation.
+            out_path_json = str(
+                config.get("MATCH_OUTPUT_PATH_JSON", "{playlist_name}_matches.json")
+            ).format(playlist_name=playlist_name)
             write_match_json(matches, output_path=out_path_json)
-            console.print(f"[bold green]✓ Wrote JSON report:[/bold green] {out_path_json}")
+            console.print(
+                f"[bold green]✓ Wrote JSON report:[/bold green] {out_path_json}"
+            )
 
 
 def review_uncertain_matches(uncertain_matches: dict) -> dict[str, str | None]:
@@ -144,8 +173,14 @@ def review_uncertain_matches(uncertain_matches: dict) -> dict[str, str | None]:
             console.print(f"  {i}) [{int(score)}] {candidate_path}{marker}")
         console.print("  s) Skip", "  m) Manual path")
         if high_confidence:
-            console.print("[green]Press Enter to accept the high-confidence match, or choose another option.[/green]")
-        choice = Prompt.ask("Choice", choices=[str(i) for i in range(1, len(candidates) + 1)] + ["s", "m"], default="1")
+            console.print(
+                "[green]Press Enter to accept the high-confidence match, or choose another option.[/green]"
+            )
+        choice = Prompt.ask(
+            "Choice",
+            choices=[str(i) for i in range(1, len(candidates) + 1)] + ["s", "m"],
+            default="1",
+        )
         if choice.isdigit() and 1 <= int(choice) <= len(candidates):
             reviewed_matches[track] = candidates[int(choice) - 1][0]
         elif choice == "m":
@@ -158,7 +193,10 @@ def review_uncertain_matches(uncertain_matches: dict) -> dict[str, str | None]:
             reviewed_matches[track] = None
     return reviewed_matches
 
-def manual_match_unmatched(unmatched_tracks: list, flac_lookup: list[tuple[str, str]]) -> dict[str, str | None]:
+
+def manual_match_unmatched(
+    unmatched_tracks: list, flac_lookup: list[tuple[str, str]]
+) -> dict[str, str | None]:
     manual_matches = {}
     # Ensure we also filter hidden files for manual matching phase
     flac_lookup = _filter_flac_lookup(flac_lookup)
@@ -187,7 +225,11 @@ def manual_match_unmatched(unmatched_tracks: list, flac_lookup: list[tuple[str, 
             console.print(f"  {i}) [{score}] {path_map[norm]}")
         console.print("  s) Skip", "  m) Manual path")
         # Default to first candidate on Enter for faster manual resolution
-        choice = Prompt.ask("Choice", choices=[str(i) for i in range(1, len(candidates) + 1)] + ["s", "m"], default="1")
+        choice = Prompt.ask(
+            "Choice",
+            choices=[str(i) for i in range(1, len(candidates) + 1)] + ["s", "m"],
+            default="1",
+        )
         if choice.isdigit() and 1 <= int(choice) <= len(candidates):
             manual_matches[track] = path_map[candidates[int(choice) - 1][0]]
         elif choice == "m":
@@ -199,6 +241,7 @@ def manual_match_unmatched(unmatched_tracks: list, flac_lookup: list[tuple[str, 
         else:
             manual_matches[track] = None
     return manual_matches
+
 
 def _build_inverted_index(library_choices: list[str]) -> dict:
     """Builds an inverted index from words to normalized track strings for fast lookup."""
@@ -224,9 +267,11 @@ def _word_overlap_fraction(a: str, b: str) -> float:
         return 0.0
     return len(a_words & b_words) / float(len(a_words))
 
+
 def _tokenize_words(text: str) -> list[str]:
     """Simple alnum tokenizer used for building query/index words."""
     import re as _re
+
     if not text:
         return []
     return [w for w in _re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2]
@@ -237,9 +282,15 @@ def _build_query_text_from_source(source: str) -> str:
     Otherwise, return the original string.
     """
     try:
-        if isinstance(source, str) and ("/" in source or source.lower().endswith(".flac")):
+        if isinstance(source, str) and (
+            "/" in source or source.lower().endswith(".flac")
+        ):
             meta = parse_filename_structure(source)
-            parts = [meta.get("artist", ""), meta.get("title", ""), meta.get("album", "")]
+            parts = [
+                meta.get("artist", ""),
+                meta.get("title", ""),
+                meta.get("album", ""),
+            ]
             return " ".join(p for p in parts if p)
     except Exception:
         pass
@@ -263,7 +314,13 @@ def _get_candidates_from_index(norm_query: str, inverted_index: dict) -> list[st
 
     return list(candidate_norms)
 
-def find_best_match(norm_query: str, candidate_choices: list[str], path_map: dict, original_source: str | None = None) -> tuple[str, float] | None:
+
+def find_best_match(
+    norm_query: str,
+    candidate_choices: list[str],
+    path_map: dict,
+    original_source: str | None = None,
+) -> tuple[str, float] | None:
     """Finds the best match from a list of pre-filtered candidates using metadata-aware scoring.
 
     Uses the original source string for metadata parsing when available (and especially
@@ -275,7 +332,9 @@ def find_best_match(norm_query: str, candidate_choices: list[str], path_map: dic
     # Prefer the original source string to retain path structure for parsing
     source_text = original_source or norm_query
     try:
-        if isinstance(source_text, str) and ("/" in source_text or source_text.lower().endswith(".flac")):
+        if isinstance(source_text, str) and (
+            "/" in source_text or source_text.lower().endswith(".flac")
+        ):
             source_meta = parse_filename_structure(source_text)
         else:
             # If we have a direct mapping from norm to path, use it; else parse the text as-is
@@ -297,7 +356,14 @@ def find_best_match(norm_query: str, candidate_choices: list[str], path_map: dic
         return path_map[best_candidate_norm], float(best_score)
     return None
 
-def _score_candidates_with_metadata(norm_query: str, path_map: dict, library_choices: list[str], original_source: str | None = None, limit: int = 5) -> list[tuple[str, float]]:
+
+def _score_candidates_with_metadata(
+    norm_query: str,
+    path_map: dict,
+    library_choices: list[str],
+    original_source: str | None = None,
+    limit: int = 5,
+) -> list[tuple[str, float]]:
     """Build top-N candidates scored with calculate_match_score for review.
 
     Returns a list of (candidate_path, composite_score) sorted desc.
@@ -305,7 +371,9 @@ def _score_candidates_with_metadata(norm_query: str, path_map: dict, library_cho
     # Build source metadata
     source_text = original_source or norm_query
     try:
-        if isinstance(source_text, str) and ("/" in source_text or str(source_text).lower().endswith(".flac")):
+        if isinstance(source_text, str) and (
+            "/" in source_text or str(source_text).lower().endswith(".flac")
+        ):
             source_meta = parse_filename_structure(source_text)
         else:
             src_path = path_map.get(norm_query, source_text)
@@ -314,7 +382,12 @@ def _score_candidates_with_metadata(norm_query: str, path_map: dict, library_cho
         source_meta = parse_filename_structure(source_text)
 
     # Seed candidates using fuzzy to narrow down, then rescore with metadata
-    seed_norms = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=max(limit * 10, 50))]
+    seed_norms = [
+        c[0]
+        for c in fuzzy_process.extract(
+            norm_query, library_choices, limit=max(limit * 10, 50)
+        )
+    ]
     seen = set()
     scored: list[tuple[str, float]] = []
     for norm in seed_norms:
@@ -328,7 +401,10 @@ def _score_candidates_with_metadata(norm_query: str, path_map: dict, library_cho
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored[:limit]
 
-def _interactive_export_menu(matches: dict, tracks_list: list[str], playlist_input: str):
+
+def _interactive_export_menu(
+    matches: dict, tracks_list: list[str], playlist_input: str
+):
     """Displays an interactive menu to export matching results."""
     playlist_path = Path(playlist_input)
     playlist_name = playlist_path.stem
@@ -345,26 +421,32 @@ def _interactive_export_menu(matches: dict, tracks_list: list[str], playlist_inp
     choice_map = {}
     if matched_paths:
         console.print("[cyan]  [1] Export M3U playlist for matched tracks[/cyan]")
-        choice_map['1'] = 'm3u'
+        choice_map["1"] = "m3u"
     if unmatched_tracks:
         console.print("[cyan]  [2] Export SongShift JSON for unmatched tracks[/cyan]")
-        choice_map['2'] = 'songshift'
+        choice_map["2"] = "songshift"
     console.print("[cyan]  [3] Export detailed JSON match report[/cyan]")
-    choice_map['3'] = 'json'
+    choice_map["3"] = "json"
     if matched_paths and unmatched_tracks:
         console.print("[cyan]  [d] Do all of the above[/cyan]")
-        choice_map['d'] = 'all'
+        choice_map["d"] = "all"
     console.print("[cyan]  [s] Skip export[/cyan]")
-    choice_map['s'] = 'skip'
+    choice_map["s"] = "skip"
 
-    selection = Prompt.ask("Your choice?", choices=list(choice_map.keys()), default="s").lower()
+    selection = Prompt.ask(
+        "Your choice?", choices=list(choice_map.keys()), default="s"
+    ).lower()
 
-    if selection == 'skip':
+    if selection == "skip":
         return
 
     def _export_m3u():
-        default_path_template = config.get('MATCH_OUTPUT_PATH_M3U', f"{playlist_name}_matched.m3u")
-        default_path = str(Path.cwd() / default_path_template.format(playlist_name=playlist_name))
+        default_path_template = config.get(
+            "MATCH_OUTPUT_PATH_M3U", f"{playlist_name}_matched.m3u"
+        )
+        default_path = str(
+            Path.cwd() / default_path_template.format(playlist_name=playlist_name)
+        )
         output_path = Prompt.ask("Path for M3U file?", default=default_path)
         write_match_m3u(matches, output_path)
 
@@ -374,21 +456,28 @@ def _interactive_export_menu(matches: dict, tracks_list: list[str], playlist_inp
         write_songshift_json(unmatched_tracks, output_path, playlist_name=playlist_name)
 
     def _export_json():
-        default_path_template = config.get('MATCH_OUTPUT_PATH_JSON', f"{playlist_name}_matches.json")
-        default_path = str(Path.cwd() / default_path_template.format(playlist_name=playlist_name))
+        default_path_template = config.get(
+            "MATCH_OUTPUT_PATH_JSON", f"{playlist_name}_matches.json"
+        )
+        default_path = str(
+            Path.cwd() / default_path_template.format(playlist_name=playlist_name)
+        )
         output_path = Prompt.ask("Path for detailed JSON report?", default=default_path)
         write_match_json(matches, output_path)
 
-    if selection == '1':
+    if selection == "1":
         _export_m3u()
-    elif selection == '2':
+    elif selection == "2":
         _export_songshift()
-    elif selection == '3':
+    elif selection == "3":
         _export_json()
-    elif selection == 'd':
-        if '1' in choice_map: _export_m3u()
-        if '2' in choice_map: _export_songshift()
-        if '3' in choice_map: _export_json()
+    elif selection == "d":
+        if "1" in choice_map:
+            _export_m3u()
+        if "2" in choice_map:
+            _export_songshift()
+        if "3" in choice_map:
+            _export_json()
 
 
 def perform_matching_with_review(
@@ -396,9 +485,11 @@ def perform_matching_with_review(
     flac_lookup: list[tuple[str, str]],
     playlist_input: str,
     threshold: int = 85,
-    review_min: int = 65
+    review_min: int = 65,
 ) -> dict[str, str | None]:
-    console.print(f"[blue]Matching {len(tracks)} tracks (threshold {threshold}, review {review_min})[/blue]")
+    console.print(
+        f"[blue]Matching {len(tracks)} tracks (threshold {threshold}, review {review_min})[/blue]"
+    )
     # Filter out AppleDouble and similar hidden files from the library list
     flac_lookup = _filter_flac_lookup(flac_lookup)
     path_map = {norm: path for path, norm in flac_lookup}
@@ -423,10 +514,19 @@ def perform_matching_with_review(
             if norm_query in path_map:
                 match_path, score = path_map[norm_query], 100.0
             else:
-                candidate_choices = _get_candidates_from_index(norm_query, inverted_index)
+                candidate_choices = _get_candidates_from_index(
+                    norm_query, inverted_index
+                )
                 if not candidate_choices:
-                    candidate_choices = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)]
-                match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0.0)
+                    candidate_choices = [
+                        c[0]
+                        for c in fuzzy_process.extract(
+                            norm_query, library_choices, limit=50
+                        )
+                    ]
+                match_path, score = find_best_match(
+                    norm_query, candidate_choices, path_map, original_source=track
+                ) or (None, 0.0)
             return track, norm_query, match_path, score
 
         with ThreadPoolExecutor() as executor:
@@ -450,13 +550,19 @@ def perform_matching_with_review(
                     # path_map maps norm->path, so build reverse lazily for this check
                     try:
                         # small reverse map for this single check
-                        matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                        matched_norm = next(
+                            n for n, p in path_map.items() if p == match_path
+                        )
                         overlap = _word_overlap_fraction(norm_query, matched_norm)
-                        overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                        overlap_ok = overlap >= float(
+                            config.get("WORD_OVERLAP_REJECT", 0.15)
+                        )
                     except StopIteration:
                         overlap_ok = True  # if unknown, don't block
                 if match_path and score >= threshold and overlap_ok:
-                    console.print(f"[green][AUTO][/green] {int(score)} {track} → {match_path}")
+                    console.print(
+                        f"[green][AUTO][/green] {int(score)} {track} → {match_path}"
+                    )
                     console.print("─" * 80)
                     results[track] = match_path
                     auto_match_scores.append(score)
@@ -464,26 +570,41 @@ def perform_matching_with_review(
                 elif match_path and review_min <= score < threshold:
                     # If word overlap is too low, downgrade to unmatched; if borderline, keep for review
                     try:
-                        matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                        matched_norm = next(
+                            n for n, p in path_map.items() if p == match_path
+                        )
                         overlap = _word_overlap_fraction(norm_query, matched_norm)
                     except StopIteration:
                         overlap = 1.0
-                    review_floor = float(config.get('WORD_OVERLAP_REVIEW', 0.40))
-                    reject_floor = float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                    review_floor = float(config.get("WORD_OVERLAP_REVIEW", 0.40))
+                    reject_floor = float(config.get("WORD_OVERLAP_REJECT", 0.15))
                     if overlap < reject_floor:
                         unmatched_queue.append(track)
                     else:
                         # Build metadata-scored candidates for consistent review display
-                        candidates = _score_candidates_with_metadata(norm_query, path_map, library_choices, original_source=track, limit=5)
+                        candidates = _score_candidates_with_metadata(
+                            norm_query,
+                            path_map,
+                            library_choices,
+                            original_source=track,
+                            limit=5,
+                        )
                         uncertain_candidates[track] = candidates
                 else:
                     unmatched_queue.append(track)
                     if match_path:
-                        logger.info("REJECTED: Low score (%.1f) for '%s' -> '%s'", score, track, match_path)
+                        logger.info(
+                            "REJECTED: Low score (%.1f) for '%s' -> '%s'",
+                            score,
+                            track,
+                            match_path,
+                        )
                 progress.update(task, advance=1)
 
     if uncertain_candidates:
-        console.print(f"\n[yellow]Reviewing {len(uncertain_candidates)} uncertain matches...[/yellow]")
+        console.print(
+            f"\n[yellow]Reviewing {len(uncertain_candidates)} uncertain matches...[/yellow]"
+        )
         reviewed = review_uncertain_matches(uncertain_candidates)
         for track, path in reviewed.items():
             if path:
@@ -492,7 +613,9 @@ def perform_matching_with_review(
                 unmatched_queue.append(track)
 
     if unmatched_queue:
-        console.print(f"\n[red]Manual matching for {len(unmatched_queue)} remaining tracks...[/red]")
+        console.print(
+            f"\n[red]Manual matching for {len(unmatched_queue)} remaining tracks...[/red]"
+        )
         manual_matches = manual_match_unmatched(unmatched_queue, flac_lookup)
         results.update(manual_matches)
 
@@ -500,7 +623,15 @@ def perform_matching_with_review(
 
     return results
 
-def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_min=65, interactive: bool = True):
+
+def find_matches(
+    tracks,
+    flac_lookup,
+    playlist_input: str,
+    threshold=85,
+    review_min=65,
+    interactive: bool = True,
+):
     flac_lookup = _filter_flac_lookup(flac_lookup)
     path_map = {norm: path for path, norm in flac_lookup}
     library_choices = list(path_map.keys())
@@ -521,10 +652,19 @@ def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_
             if norm_query in path_map:
                 match_path, score = path_map[norm_query], 100
             else:
-                candidate_choices = _get_candidates_from_index(norm_query, inverted_index)
+                candidate_choices = _get_candidates_from_index(
+                    norm_query, inverted_index
+                )
                 if not candidate_choices:
-                    candidate_choices = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)]
-                match_path, score = find_best_match(norm_query, candidate_choices, path_map, original_source=track) or (None, 0)
+                    candidate_choices = [
+                        c[0]
+                        for c in fuzzy_process.extract(
+                            norm_query, library_choices, limit=50
+                        )
+                    ]
+                match_path, score = find_best_match(
+                    norm_query, candidate_choices, path_map, original_source=track
+                ) or (None, 0)
 
             if match_path and match_path in used_library_paths:
                 logger.debug("Skipping candidate already used: %s", match_path)
@@ -534,13 +674,19 @@ def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_
             overlap_ok = False
             if match_path:
                 try:
-                    matched_norm = next(n for n, p in path_map.items() if p == match_path)
+                    matched_norm = next(
+                        n for n, p in path_map.items() if p == match_path
+                    )
                     overlap = _word_overlap_fraction(norm_query, matched_norm)
-                    overlap_ok = overlap >= float(config.get('WORD_OVERLAP_REJECT', 0.15))
+                    overlap_ok = overlap >= float(
+                        config.get("WORD_OVERLAP_REJECT", 0.15)
+                    )
                 except StopIteration:
                     overlap_ok = True
             if match_path and score >= threshold and overlap_ok:
-                console.print(f"[green]MATCH:[/] '{track}' → '{match_path}' (Score: {int(score)})")
+                console.print(
+                    f"[green]MATCH:[/] '{track}' → '{match_path}' (Score: {int(score)})"
+                )
                 results[track] = match_path
                 auto_match_scores.append(int(round(score)))
                 used_library_paths.add(match_path)
@@ -550,8 +696,15 @@ def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_
 
     unmatched_tracks = [track for track, path in results.items() if path is None]
     if interactive and unmatched_tracks:
-        console.print(f"\n[yellow]{len(unmatched_tracks)} tracks remain unmatched.[/yellow]")
-        if Prompt.ask("[bold]Review them manually?[/bold]", choices=["y", "n"], default="y") == "y":
+        console.print(
+            f"\n[yellow]{len(unmatched_tracks)} tracks remain unmatched.[/yellow]"
+        )
+        if (
+            Prompt.ask(
+                "[bold]Review them manually?[/bold]", choices=["y", "n"], default="y"
+            )
+            == "y"
+        ):
             manual_matches = manual_match_unmatched(unmatched_tracks, flac_lookup)
             results.update(manual_matches)
 
@@ -560,36 +713,56 @@ def find_matches(tracks, flac_lookup, playlist_input: str, threshold=85, review_
 
     return results
 
+
 def write_match_json(matches: dict, output_path: str):
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(matches, f, indent=2, ensure_ascii=False)
 
+
 def write_match_m3u(matches: dict, output_path: str):
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
-        for i, (track, path) in enumerate(m for m in matches.items() if m[1] is not None):
+        for i, (track, path) in enumerate(
+            m for m in matches.items() if m[1] is not None
+        ):
             f.write(f"\n# Track {i+1}: {track}\n# {'='*60}\n{path}\n")
 
-def write_songshift_json(tracks: list[dict], output_path: str, playlist_name: str = "Unmatched Tracks", service: str = "qobuz"):
-    payload = [{"service": service, "serviceId": None, "name": playlist_name, "tracks": tracks}]
+
+def write_songshift_json(
+    tracks: list[dict],
+    output_path: str,
+    playlist_name: str = "Unmatched Tracks",
+    service: str = "qobuz",
+):
+    payload = [
+        {"service": service, "serviceId": None, "name": playlist_name, "tracks": tracks}
+    ]
     try:
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
-        console.print(f"[bold green]✓ SongShift playlist saved:[/] {output_path} ({len(tracks)} tracks)")
+        console.print(
+            f"[bold green]✓ SongShift playlist saved:[/] {output_path} ({len(tracks)} tracks)"
+        )
     except Exception as e:
         console.print(f"[red]Error writing SongShift playlist: {e}[/red]")
+
 
 def extract_unmatched_tracks(tracks_list: list[str], matches: dict) -> list[dict]:
     unmatched = []
     for track_name in tracks_list:
         if matches.get(track_name) is None:
-            parts = track_name.split(' - ', 1)
+            parts = track_name.split(" - ", 1)
             artist, title = parts if len(parts) == 2 else ("Unknown Artist", track_name)
             unmatched.append({"artist": artist.strip(), "track": title.strip()})
     return unmatched
 
 
-def simple_find_matches(tracks: list[str], flac_lookup: list[tuple[str, str]], playlist_input: str, threshold: int = 85) -> dict[str, str | None]:
+def simple_find_matches(
+    tracks: list[str],
+    flac_lookup: list[tuple[str, str]],
+    playlist_input: str,
+    threshold: int = 85,
+) -> dict[str, str | None]:
     """
     Simple fuzzy-ratio matcher similar to scripts/archive/gg.py.
     - Builds a norm->path map from the library index.
@@ -604,7 +777,9 @@ def simple_find_matches(tracks: list[str], flac_lookup: list[tuple[str, str]], p
     results: dict[str, str | None] = {track: None for track in tracks}
 
     with Progress(console=console) as progress:
-        task = progress.add_task("[green]Auto-matching (simple)...[/green]", total=len(tracks))
+        task = progress.add_task(
+            "[green]Auto-matching (simple)...[/green]", total=len(tracks)
+        )
         for track in tracks:
             norm_query = normalize_string(track)
             best_path = None
@@ -613,14 +788,25 @@ def simple_find_matches(tracks: list[str], flac_lookup: list[tuple[str, str]], p
                 best_path, best_score = path_map[norm_query], 100.0
             else:
                 # Seed with fuzzy choices to avoid scoring against the whole library
-                seeds = [c[0] for c in fuzzy_process.extract(norm_query, library_choices, limit=50)] if library_choices else []
+                seeds = (
+                    [
+                        c[0]
+                        for c in fuzzy_process.extract(
+                            norm_query, library_choices, limit=50
+                        )
+                    ]
+                    if library_choices
+                    else []
+                )
                 for cand_norm in seeds:
                     score = _rf_ratio(norm_query, cand_norm)
                     if score > best_score:
                         best_score = score
                         best_path = path_map[cand_norm]
             if best_path and best_score >= float(threshold):
-                console.print(f"[green]MATCH:[/] '{track}' → '{best_path}' (Score: {int(best_score)})")
+                console.print(
+                    f"[green]MATCH:[/] '{track}' → '{best_path}' (Score: {int(best_score)})"
+                )
                 results[track] = best_path
             progress.update(task, advance=1)
 

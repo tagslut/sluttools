@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-import os
-import sys
 import json
+import os
 import sqlite3
+import sys
 import unicodedata
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Any
-
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-from rich.table import Table
-from rich.panel import Panel
-from rich.prompt import Prompt
+from typing import Any, Dict, List, Optional, Tuple
 
 from match_visualizer import (
-    normalize_string,
+    build_search_string,
     interactive_match_selection,
+    normalize_string,
     visualize_match_scores,
-    build_search_string
 )
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+from rich.prompt import Prompt
+from rich.table import Table
 
 console = Console()
 
@@ -27,19 +32,23 @@ DEFAULT_FLAC_LIBRARY_DIR = "~/Music"
 DEFAULT_DB_PATH = Path.home() / ".config/sluttools/flibrary.db"
 DEFAULT_AUTO_MATCH_THRESHOLD = 65
 
+
 def open_db(db_path: Path = DEFAULT_DB_PATH):
     """Open and initialize the database connection"""
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS flacs (
             path TEXT PRIMARY KEY,
             norm TEXT NOT NULL,
             mtime INTEGER NOT NULL
         )
-    """)
+    """
+    )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_norm ON flacs(norm)")
     return conn
+
 
 def refresh_library(library_dir: str, db_path: Path = DEFAULT_DB_PATH):
     """Refresh the FLAC library index (delta-scan)"""
@@ -67,10 +76,15 @@ def refresh_library(library_dir: str, db_path: Path = DEFAULT_DB_PATH):
         norm = normalize_string(p.stem)
 
         if not row:  # new file
-            cur.execute("INSERT OR REPLACE INTO flacs(path,norm,mtime) VALUES (?,?,?)", (p_str, norm, mtime))
+            cur.execute(
+                "INSERT OR REPLACE INTO flacs(path,norm,mtime) VALUES (?,?,?)",
+                (p_str, norm, mtime),
+            )
             new_count += 1
         elif row[0] != mtime:  # modified file
-            cur.execute("UPDATE flacs SET norm=?, mtime=? WHERE path=?", (norm, mtime, p_str))
+            cur.execute(
+                "UPDATE flacs SET norm=?, mtime=? WHERE path=?", (norm, mtime, p_str)
+            )
             updated_count += 1
 
     conn.commit()
@@ -80,8 +94,9 @@ def refresh_library(library_dir: str, db_path: Path = DEFAULT_DB_PATH):
         "removed": removed_count,
         "updated": updated_count,
         "new": new_count,
-        "total": len(flac_paths)
+        "total": len(flac_paths),
     }
+
 
 def get_flac_lookup(db_path: Path = DEFAULT_DB_PATH):
     """Get all FLAC entries from the database"""
@@ -92,10 +107,14 @@ def get_flac_lookup(db_path: Path = DEFAULT_DB_PATH):
     conn.close()
     return rows  # list of (path, norm)
 
-def batch_match_entries(entries: List[Dict[str, Any]], flac_lookup: List[Tuple[str, str]], 
-                       auto_threshold: int = DEFAULT_AUTO_MATCH_THRESHOLD,
-                       interactive: bool = True,
-                       show_progress: bool = True):
+
+def batch_match_entries(
+    entries: List[Dict[str, Any]],
+    flac_lookup: List[Tuple[str, str]],
+    auto_threshold: int = DEFAULT_AUTO_MATCH_THRESHOLD,
+    interactive: bool = True,
+    show_progress: bool = True,
+):
     """Match a batch of entries with transparent scoring and optional interactive mode"""
     matched = [None] * len(entries)
     unmatched_indices = []
@@ -107,11 +126,12 @@ def batch_match_entries(entries: List[Dict[str, Any]], flac_lookup: List[Tuple[s
         progress_ctx = Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
-            TimeElapsedColumn()
+            TimeElapsedColumn(),
         )
     else:
         # Use a dummy context manager when no progress display is needed
         from contextlib import nullcontext
+
         progress_ctx = nullcontext()
 
     with progress_ctx as progress:
@@ -151,12 +171,16 @@ def batch_match_entries(entries: List[Dict[str, Any]], flac_lookup: List[Tuple[s
                 matched[i] = best_path
                 # Optional visual feedback for auto-matches
                 if not show_progress:
-                    console.print(f"[green]✓[/green] Auto-matched ({best_score:.1f}%): {search} → {os.path.basename(best_path)}")
+                    console.print(
+                        f"[green]✓[/green] Auto-matched ({best_score:.1f}%): {search} → {os.path.basename(best_path)}"
+                    )
             else:
                 unmatched_indices.append(i)
                 # Optional visual feedback for non-matches
                 if not show_progress:
-                    console.print(f"[yellow]?[/yellow] No auto-match: {search} (best: {best_score:.1f}%)")
+                    console.print(
+                        f"[yellow]?[/yellow] No auto-match: {search} (best: {best_score:.1f}%)"
+                    )
 
             if show_progress:
                 progress.advance(task)
@@ -164,13 +188,20 @@ def batch_match_entries(entries: List[Dict[str, Any]], flac_lookup: List[Tuple[s
     # Stats after batch matching
     auto_matched_count = len([x for x in matched if x])
     auto_unmatched_count = total_entries - auto_matched_count
-    console.print(f"[bold green]{auto_matched_count} auto-matched[/bold green], "
-                 f"[bold yellow]{auto_unmatched_count} need review[/bold yellow]")
+    console.print(
+        f"[bold green]{auto_matched_count} auto-matched[/bold green], "
+        f"[bold yellow]{auto_unmatched_count} need review[/bold yellow]"
+    )
 
     # Interactive matching for unmatched entries
     if interactive and unmatched_indices:
-        console.print(Panel("[bold]Starting interactive matching for unmatched tracks[/bold]", 
-                          title="Manual Matching", border_style="yellow"))
+        console.print(
+            Panel(
+                "[bold]Starting interactive matching for unmatched tracks[/bold]",
+                title="Manual Matching",
+                border_style="yellow",
+            )
+        )
 
         manual_match_count = 0
         for idx in unmatched_indices:
@@ -180,9 +211,12 @@ def batch_match_entries(entries: List[Dict[str, Any]], flac_lookup: List[Tuple[s
                 matched[idx] = result
                 manual_match_count += 1
 
-        console.print(f"[bold green]{manual_match_count} tracks manually matched.[/bold green]")
+        console.print(
+            f"[bold green]{manual_match_count} tracks manually matched.[/bold green]"
+        )
 
     return matched, unmatched_indices
+
 
 # Import fuzzy matching functions (copied from match_visualizer to avoid circular imports)
 try:
@@ -196,6 +230,7 @@ try:
 
     def token_set_ratio(a, b):
         return rf_fuzz.token_set_ratio(a, b)
+
 except ImportError:
     from fuzzywuzzy import fuzz as fw_fuzz  # slower fallback
 

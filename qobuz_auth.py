@@ -19,15 +19,17 @@ Env vars (optional, override prompts):
   QOBUZ_EMAIL, QOBUZ_PASSWORD, QOBUZ_APP_ID, QOBUZ_USER_AUTH_TOKEN
 """
 
+import getpass
 import json
 import os
 import sys
-import getpass
 import time
 from pathlib import Path
-from urllib.parse import urlencode
 from typing import Optional
-import requests, certifi
+from urllib.parse import urlencode
+
+import certifi
+import requests
 
 # Use one session pinned to certifi CA bundle
 session = requests.Session()
@@ -41,6 +43,7 @@ CONF_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = CONF_DIR / "session.json"
 
 API_BASE = "https://www.qobuz.com/api.json/0.2"
+
 
 def _http_get(url: str, timeout=15):
     try:
@@ -121,11 +124,17 @@ def login_flow():
 
 
 def paste_flow():
-    existing = os.environ.get("QOBUZ_USER_AUTH_TOKEN") or input("Paste user_auth_token: ").strip()
+    existing = (
+        os.environ.get("QOBUZ_USER_AUTH_TOKEN")
+        or input("Paste user_auth_token: ").strip()
+    )
     if not existing:
         print("No token provided.", file=sys.stderr)
         sys.exit(2)
-    app_id = os.environ.get("QOBUZ_APP_ID") or input("Optional app_id (press Enter to skip): ").strip()
+    app_id = (
+        os.environ.get("QOBUZ_APP_ID")
+        or input("Optional app_id (press Enter to skip): ").strip()
+    )
     save_session(existing, app_id or None)
     print("✓ Token saved.")
     return existing
@@ -192,6 +201,7 @@ def main(argv):
     else:
         print("Unknown command.")
         return 2
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -3,13 +3,14 @@ Compatibility shim for tests expecting music_automation.core.database
 It forwards to sluttools implementations and implements a few small helpers
 with the same signatures the tests expect.
 """
+
 from __future__ import annotations
 
 import json
 import sqlite3
 import subprocess
 from pathlib import Path
-from typing import Iterable, Tuple, Optional, List
+from typing import Iterable, List, Optional, Tuple
 
 # Bring in sluttools functions/modules
 from sluttools.database import refresh_library as _slut_refresh_library
@@ -186,7 +187,9 @@ def batch_resample(db_path: str, dry_run: bool = False) -> None:
         if sr not in source_rates:
             continue
         in_path = str(file_path)
-        out_path = str(Path(in_path).with_suffix("").as_posix()) + f".{target_rate}.flac"
+        out_path = (
+            str(Path(in_path).with_suffix("").as_posix()) + f".{target_rate}.flac"
+        )
         cmd = ["sox", in_path, "-r", str(target_rate), out_path]
         if not dry_run:
             subprocess.run(cmd)

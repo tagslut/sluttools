@@ -3,28 +3,31 @@
 # Map a Tidal URL (track/album/playlist) to equivalent content on Qobuz (if available).
 # Requires the 'keyring' library and a Qobuz App ID stored in the system's keychain.
 
-import os
-import sys
-import re
-import json
+import argparse
 import csv
 import html
+import json
+import os
+import re
+import ssl
+import sys
 import time
-import argparse
 import urllib.parse
 import urllib.request
-import ssl
-import requests  # for TIDAL OpenAPI fallback
 from typing import Any, Dict, List, Optional, Tuple
 
-# Additional alias imports required by helper block
-import requests as _requests
 import certifi as _certifi
+
+# Additional alias imports required by helper block
+import requests  # for TIDAL OpenAPI fallback
+import requests as _requests
 
 try:
     import keyring
 except ImportError:
-    sys.exit("Error: The 'keyring' library is required. Please install it with 'pip install keyring'")
+    sys.exit(
+        "Error: The 'keyring' library is required. Please install it with 'pip install keyring'"
+    )
 
 SERVICE_NAME = "sluttools.tidal2qobuz"
 QOBUZ_APP_ID = keyring.get_password(SERVICE_NAME, "qobuz_app_id")
@@ -42,6 +45,7 @@ UA = (
 
 try:
     import certifi  # optional but recommended; provides a reliable CA bundle
+
     _CAFILE = certifi.where()
 except Exception:
     _CAFILE = None
@@ -49,7 +53,9 @@ except Exception:
 # ---- TIDAL OpenAPI fallback fetcher (pages/playlist) ----
 _TIDAL_OPENAPI_URL = "https://openapi.tidal.com/v2/pages/playlist"
 _TIDAL_DEFAULT_COUNTRY = os.environ.get("TIDAL_COUNTRY", "LB")
-_TIDAL_WEB_TOKEN = os.environ.get("TIDAL_WEB_TOKEN")  # may be a static web token or a JWT
+_TIDAL_WEB_TOKEN = os.environ.get(
+    "TIDAL_WEB_TOKEN"
+)  # may be a static web token or a JWT
 _PUBLIC_X_TIDAL = "wdgaB1CilGA-S_s2"
 
 _tidal_session = _requests.Session()
@@ -62,7 +68,11 @@ _headers = {
 }
 # If the provided token looks like a JWT (has 3 dot-separated parts and starts with 'eyJ'),
 # use it as an Authorization bearer token and still send the known public x-tidal-token.
-if _TIDAL_WEB_TOKEN and _TIDAL_WEB_TOKEN.count(".") >= 2 and _TIDAL_WEB_TOKEN.startswith(("eyJ", "eyJhb")):
+if (
+    _TIDAL_WEB_TOKEN
+    and _TIDAL_WEB_TOKEN.count(".") >= 2
+    and _TIDAL_WEB_TOKEN.startswith(("eyJ", "eyJhb"))
+):
     _headers["authorization"] = f"Bearer {_TIDAL_WEB_TOKEN}"
     _headers["x-tidal-token"] = _PUBLIC_X_TIDAL
 else:
@@ -71,11 +81,18 @@ else:
 
 _tidal_session.headers.update(_headers)
 
-_uuid_re = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_uuid_re = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
 
 def _retry_countries(preferred: Optional[str]) -> list[str]:
     """Return a small ordered set of country codes to try for region-locked playlists."""
-    base = [c for c in [preferred, _TIDAL_DEFAULT_COUNTRY, "US", "FR", "NL", "DE", "GB"] if c]
+    base = [
+        c
+        for c in [preferred, _TIDAL_DEFAULT_COUNTRY, "US", "FR", "NL", "DE", "GB"]
+        if c
+    ]
     # de-dup while preserving order
     seen = set()
     out = []
@@ -86,12 +103,14 @@ def _retry_countries(preferred: Optional[str]) -> list[str]:
             out.append(u)
     return out
 
+
 def _extract_playlist_uuid(s: str) -> str:
     """Extract a playlist UUID from a string or URL; raises ValueError if not found."""
     m = _uuid_re.search(s or "")
     if not m:
         raise ValueError("Could not extract playlist UUID from input.")
     return m.group(0)
+
 
 def _normalize_artist_list(artists):
     """Return a comma-separated artist string from varied TIDAL artist structures."""
@@ -106,17 +125,26 @@ def _normalize_artist_list(artists):
                 names.append(a["artist"]["name"])
     return ", ".join(n for n in names if n)
 
+
 def _iter_tracks_from_page(page_obj):
     """Yield track dicts from heterogeneous TIDAL page JSON structures."""
     # rows -> items -> data.tracks.items[*].item or data.pagedList(items)
     for row in page_obj.get("rows", []):
         for cell in row.get("items", []):
-            data = (cell.get("data") or {})
+            data = cell.get("data") or {}
             tracks_obj = None
             if isinstance(data, dict):
-                if "tracks" in data and isinstance(data["tracks"], dict) and "items" in data["tracks"]:
+                if (
+                    "tracks" in data
+                    and isinstance(data["tracks"], dict)
+                    and "items" in data["tracks"]
+                ):
                     tracks_obj = data["tracks"]["items"]
-                elif "pagedList" in data and isinstance(data["pagedList"], dict) and data["pagedList"].get("type") == "TRACK":
+                elif (
+                    "pagedList" in data
+                    and isinstance(data["pagedList"], dict)
+                    and data["pagedList"].get("type") == "TRACK"
+                ):
                     tracks_obj = data["pagedList"].get("items", [])
             if tracks_obj:
                 for it in tracks_obj:
@@ -136,7 +164,10 @@ def _iter_tracks_from_page(page_obj):
                 if isinstance(t, dict):
                     yield t
 
-def _fetch_playlist_tracks_openapi(src: str, *, country: str = None, locale: str = None):
+
+def _fetch_playlist_tracks_openapi(
+    src: str, *, country: str = None, locale: str = None
+):
     """
     Return a list of normalized track dicts from the TIDAL OpenAPI `pages/playlist`.
     Fields per item: title, artist, album, isrc, duration, tidal_track_id
@@ -146,7 +177,7 @@ def _fetch_playlist_tracks_openapi(src: str, *, country: str = None, locale: str
     device_types = ["WEB", "BROWSER"]
     errors = []
     for cc in _retry_countries(country):
-        loc = (locale or f"en_{cc}")
+        loc = locale or f"en_{cc}"
         for dev in device_types:
             params = {
                 "playlistId": pid,
@@ -172,14 +203,18 @@ def _fetch_playlist_tracks_openapi(src: str, *, country: str = None, locale: str
                     album_title = t["album"].get("title")
                 else:
                     album_title = t.get("albumTitle")
-                tracks.append({
-                    "title": t.get("title"),
-                    "artist": _normalize_artist_list(t.get("artists") or t.get("artistRoles") or []),
-                    "album": album_title,
-                    "isrc": t.get("isrc"),
-                    "duration": t.get("duration"),
-                    "tidal_track_id": t.get("id"),
-                })
+                tracks.append(
+                    {
+                        "title": t.get("title"),
+                        "artist": _normalize_artist_list(
+                            t.get("artists") or t.get("artistRoles") or []
+                        ),
+                        "album": album_title,
+                        "isrc": t.get("isrc"),
+                        "duration": t.get("duration"),
+                        "tidal_track_id": t.get("id"),
+                    }
+                )
             if tracks:
                 return tracks
             # If we parsed but got nothing, try next variant
@@ -187,7 +222,9 @@ def _fetch_playlist_tracks_openapi(src: str, *, country: str = None, locale: str
     if errors:
         # Surface a concise hint in verbose contexts; avoid hard-crashing the pipeline.
         if os.environ.get("TIDAL2QOBUZ_DEBUG"):
-            print("[debug] OpenAPI attempts failed:", "; ".join(errors), file=sys.stderr)
+            print(
+                "[debug] OpenAPI attempts failed:", "; ".join(errors), file=sys.stderr
+            )
     return []
 
 
@@ -204,13 +241,22 @@ def _normalize_tidal_url(url: str) -> str:
         return url
     host = (u.netloc or "").lower()
     if host in ("tidal.com", "www.tidal.com"):
-        return urllib.parse.urlunparse(("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment))
+        return urllib.parse.urlunparse(
+            ("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment)
+        )
     # already listen.tidal.com or another domain; leave unchanged
     return url
 
+
 # ---------- Utilities ----------
 
-def http_get(url: str, headers: Optional[Dict[str, str]] = None, retries: int = 2, delay: float = 0.5) -> str:
+
+def http_get(
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    retries: int = 2,
+    delay: float = 0.5,
+) -> str:
     """HTTP GET with UA, optional headers, basic retry, and clearer SSL errors."""
     last_err = None
     req_headers = {"User-Agent": UA}
@@ -233,9 +279,11 @@ def http_get(url: str, headers: Optional[Dict[str, str]] = None, retries: int = 
             time.sleep(delay)
     raise RuntimeError(f"GET failed for {url}: {last_err}") from last_err
 
+
 def strip_parens(text: str) -> str:
     """Remove parenthetical/bracketed substrings, used to reduce noise."""
     return re.sub(r"[\(\[][^)\]]*[\)\]]", "", text)
+
 
 def normalize(text: str) -> str:
     """Lowercase, unescape, drop common edition terms and non-alphanumerics."""
@@ -243,9 +291,14 @@ def normalize(text: str) -> str:
     t = t.lower()
     t = strip_parens(t)
     t = re.sub(r"[^a-z0-9]+", " ", t)
-    t = re.sub(r"\b(deluxe|remaster(ed)?|expanded|edition|anniversary|bonus|explicit|clean|mono|stereo)\b", "", t)
+    t = re.sub(
+        r"\b(deluxe|remaster(ed)?|expanded|edition|anniversary|bonus|explicit|clean|mono|stereo)\b",
+        "",
+        t,
+    )
     t = re.sub(r"\s+", " ", t).strip()
     return t
+
 
 def token_set_ratio(a: str, b: str) -> float:
     """Compute soft overlap score using token sets of normalized strings (0..1)."""
@@ -257,9 +310,11 @@ def token_set_ratio(a: str, b: str) -> float:
     denom = (len(A) + len(B)) / 2.0
     return inter / denom
 
+
 def soft_equals(a: str, b: str, thresh: float = 0.6) -> bool:
     """Return True if token_set_ratio(a, b) >= threshold."""
     return token_set_ratio(a, b) >= thresh
+
 
 def best_match_by_score(candidates: List[Tuple[float, Any]]) -> Optional[Any]:
     """Pick candidate item with highest score if above acceptance floor."""
@@ -268,7 +323,9 @@ def best_match_by_score(candidates: List[Tuple[float, Any]]) -> Optional[Any]:
     candidates.sort(key=lambda x: x[0], reverse=True)
     return candidates[0][1] if candidates[0][0] >= 0.45 else None
 
+
 # ---------- Tidal parsing (HTML/JSON-LD) ----------
+
 
 def identify_tidal_kind(url: str) -> str:
     """Heuristically classify a TIDAL URL as track/album/playlist/unknown."""
@@ -282,10 +339,15 @@ def identify_tidal_kind(url: str) -> str:
         return "playlist"
     return "unknown"
 
+
 def extract_json_ld(html_text: str) -> List[dict]:
     """Extract and parse all JSON-LD script blocks from the given HTML."""
     out = []
-    for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html_text, re.S | re.I):
+    for m in re.finditer(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html_text,
+        re.S | re.I,
+    ):
         block = m.group(1).strip()
         try:
             data = json.loads(block)
@@ -297,11 +359,17 @@ def extract_json_ld(html_text: str) -> List[dict]:
             continue
     return out
 
+
 def extract_og(html_text: str, prop: str) -> Optional[str]:
     """Return OpenGraph meta content value for the given property, if present."""
     # <meta property="og:title" content="...">
-    m = re.search(rf'<meta\s+(?:property|name)=["\']{re.escape(prop)}["\']\s+content=["\']([^"\']+)["\']', html_text, re.I)
+    m = re.search(
+        rf'<meta\s+(?:property|name)=["\']{re.escape(prop)}["\']\s+content=["\']([^"\']+)["\']',
+        html_text,
+        re.I,
+    )
     return html.unescape(m.group(1)) if m else None
+
 
 def parse_tidal_track(html_text: str) -> Dict[str, Any]:
     """Parse track HTML/JSON-LD into a minimal dict: type, title, artist, album."""
@@ -322,11 +390,19 @@ def parse_tidal_track(html_text: str) -> Dict[str, Any]:
                 artist = by.get("name") or artist
             elif isinstance(by, list) and by:
                 artist = by[0].get("name") or artist
-            album = obj.get("inAlbum", {}) if isinstance(obj.get("inAlbum"), dict) else {}
+            album = (
+                obj.get("inAlbum", {}) if isinstance(obj.get("inAlbum"), dict) else {}
+            )
             album_title = album.get("name", "")
-            return {"type": "track", "title": title, "artist": artist, "album": album_title}
+            return {
+                "type": "track",
+                "title": title,
+                "artist": artist,
+                "album": album_title,
+            }
     # fallback
     return {"type": "track", "title": title, "artist": artist, "album": ""}
+
 
 def parse_tidal_album(html_text: str) -> Dict[str, Any]:
     """Parse album HTML/JSON-LD into a dict with album, artist and optional tracks."""
@@ -350,19 +426,31 @@ def parse_tidal_album(html_text: str) -> Dict[str, Any]:
                     elif isinstance(trk_by, list) and trk_by:
                         tartist = trk_by[0].get("name") or ""
                     tracks.append({"title": tname, "artist": tartist or artist})
-            return {"type": "album", "album": album_title, "artist": artist, "tracks": tracks}
+            return {
+                "type": "album",
+                "album": album_title,
+                "artist": artist,
+                "tracks": tracks,
+            }
     return {"type": "album", "album": album_title, "artist": artist, "tracks": []}
+
 
 def _extract_next_data(html_text: str) -> Optional[dict]:
     """Extract Next.js data from <script id="__NEXT_DATA__"> or window.__NEXT_DATA__ assignment."""
     # Inline script tag with id
-    m = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html_text, re.S | re.I)
+    m = re.search(
+        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+        html_text,
+        re.S | re.I,
+    )
     blob = None
     if m:
         blob = m.group(1).strip()
     else:
         # Assignment form: window.__NEXT_DATA__ = {...};
-        m2 = re.search(r'__NEXT_DATA__\s*=\s*(\{.*?\})\s*;?\s*</script>', html_text, re.S | re.I)
+        m2 = re.search(
+            r"__NEXT_DATA__\s*=\s*(\{.*?\})\s*;?\s*</script>", html_text, re.S | re.I
+        )
         if m2:
             blob = m2.group(1).strip()
     if not blob:
@@ -376,6 +464,7 @@ def _extract_next_data(html_text: str) -> Optional[dict]:
             return json.loads(cleaned)
         except Exception:
             return None
+
 
 def _collect_tracks_from_json(obj: Any, out: List[dict]):
     """Recursively collect {title, artist} pairs from arbitrary JSON."""
@@ -399,13 +488,24 @@ def _collect_tracks_from_json(obj: Any, out: List[dict]):
         if isinstance(t, str) and artist_name and t.strip() and artist_name.strip():
             out.append({"title": t.strip(), "artist": artist_name.strip()})
         for k, v in obj.items():
-            if k in ("items", "tracks", "results", "data", "rows", "cells", "entities", "nodes", "edges"):
+            if k in (
+                "items",
+                "tracks",
+                "results",
+                "data",
+                "rows",
+                "cells",
+                "entities",
+                "nodes",
+                "edges",
+            ):
                 _collect_tracks_from_json(v, out)
             elif isinstance(v, (dict, list)):
                 _collect_tracks_from_json(v, out)
     elif isinstance(obj, list):
         for it in obj:
             _collect_tracks_from_json(it, out)
+
 
 def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
     """Parse playlist HTML (JSON-LD/Next.js) into title and list of {title, artist}."""
@@ -416,7 +516,10 @@ def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
     # Try JSON-LD MusicPlaylist first
     try:
         for obj in extract_json_ld(html_text):
-            if isinstance(obj, dict) and obj.get("@type") in ("MusicPlaylist", "Playlist"):
+            if isinstance(obj, dict) and obj.get("@type") in (
+                "MusicPlaylist",
+                "Playlist",
+            ):
                 tlist = obj.get("track") or obj.get("tracks") or []
                 for t in tlist:
                     if not isinstance(t, dict):
@@ -432,7 +535,9 @@ def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
                         elif isinstance(by[0], str):
                             artist_name = by[0]
                     if isinstance(nm, str) and artist_name:
-                        tracks.append({"title": nm.strip(), "artist": artist_name.strip()})
+                        tracks.append(
+                            {"title": nm.strip(), "artist": artist_name.strip()}
+                        )
         if tracks:
             # de-duplicate
             seen = set()
@@ -466,24 +571,38 @@ def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
                             cell_data = cell.get("data", {}) or {}
                             tracks_obj = None
                             if isinstance(cell_data, dict):
-                                if "tracks" in cell_data and isinstance(cell_data["tracks"], dict) and "items" in cell_data["tracks"]:
+                                if (
+                                    "tracks" in cell_data
+                                    and isinstance(cell_data["tracks"], dict)
+                                    and "items" in cell_data["tracks"]
+                                ):
                                     tracks_obj = cell_data["tracks"]["items"]
-                                elif "pagedList" in cell_data and isinstance(cell_data["pagedList"], dict) and cell_data["pagedList"].get("type") == "TRACK":
+                                elif (
+                                    "pagedList" in cell_data
+                                    and isinstance(cell_data["pagedList"], dict)
+                                    and cell_data["pagedList"].get("type") == "TRACK"
+                                ):
                                     tracks_obj = cell_data["pagedList"].get("items", [])
                             if tracks_obj:
                                 for it in tracks_obj:
                                     t = it.get("item") if isinstance(it, dict) else it
-                                    if isinstance(t, dict) and (t.get("title") or t.get("name")):
+                                    if isinstance(t, dict) and (
+                                        t.get("title") or t.get("name")
+                                    ):
                                         title = t.get("title") or t.get("name") or ""
                                         artists = t.get("artists") or []
                                         artist_name = ""
                                         if isinstance(artists, list) and artists:
                                             if isinstance(artists[0], dict):
-                                                artist_name = artists[0].get("name") or ""
+                                                artist_name = (
+                                                    artists[0].get("name") or ""
+                                                )
                                             elif isinstance(artists[0], str):
                                                 artist_name = artists[0]
                                         if title and artist_name:
-                                            tmp.append({"title": title, "artist": artist_name})
+                                            tmp.append(
+                                                {"title": title, "artist": artist_name}
+                                            )
             except Exception:
                 pass
         # De-duplicate tmp into tracks
@@ -497,13 +616,19 @@ def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
     # Fallbacks: greedy regex patterns
     if not tracks:
         # pattern 1: "title":"...","artist":"..."
-        for m in re.finditer(r'\{\s*"title"\s*:\s*"([^"\\]+)"\s*,\s*"artist"\s*:\s*"([^"\\]+)"', html_text):
+        for m in re.finditer(
+            r'\{\s*"title"\s*:\s*"([^"\\]+)"\s*,\s*"artist"\s*:\s*"([^"\\]+)"',
+            html_text,
+        ):
             ttitle = html.unescape(m.group(1))
             tartist = html.unescape(m.group(2))
             if ttitle and tartist:
                 tracks.append({"title": ttitle, "artist": tartist})
         # pattern 2: "trackTitle":"...","artistName":"..."
-        for m in re.finditer(r'\{[^}]*"trackTitle"\s*:\s*"([^"\\]+)"[^}]*"artistName"\s*:\s*"([^"\\]+)"[^}]*\}', html_text):
+        for m in re.finditer(
+            r'\{[^}]*"trackTitle"\s*:\s*"([^"\\]+)"[^}]*"artistName"\s*:\s*"([^"\\]+)"[^}]*\}',
+            html_text,
+        ):
             ttitle = html.unescape(m.group(1))
             tartist = html.unescape(m.group(2))
             if ttitle and tartist:
@@ -519,6 +644,7 @@ def parse_tidal_playlist(html_text: str) -> Dict[str, Any]:
         tracks = uniq
 
     return {"type": "playlist", "title": title, "tracks": tracks}
+
 
 def parse_tidal_url(url: str) -> Dict[str, Any]:
     """
@@ -539,14 +665,20 @@ def parse_tidal_url(url: str) -> Dict[str, Any]:
         candidates.append(url)
         host = (u.netloc or "").lower()
         # Prefer listen.tidal.com variant
-        open_url = urllib.parse.urlunparse(("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment))
+        open_url = urllib.parse.urlunparse(
+            ("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment)
+        )
         if open_url not in candidates:
             candidates.append(open_url)
         # Add tidal.com and www.tidal.com variants
-        tidal_url = urllib.parse.urlunparse(("https", "tidal.com", u.path, u.params, u.query, u.fragment))
+        tidal_url = urllib.parse.urlunparse(
+            ("https", "tidal.com", u.path, u.params, u.query, u.fragment)
+        )
         if tidal_url not in candidates:
             candidates.append(tidal_url)
-        www_tidal_url = urllib.parse.urlunparse(("https", "www.tidal.com", u.path, u.params, u.query, u.fragment))
+        www_tidal_url = urllib.parse.urlunparse(
+            ("https", "www.tidal.com", u.path, u.params, u.query, u.fragment)
+        )
         if www_tidal_url not in candidates:
             candidates.append(www_tidal_url)
     else:
@@ -589,7 +721,9 @@ def parse_tidal_url(url: str) -> Dict[str, Any]:
             return parse_tidal_album(html_text)
         return {"type": "unknown"}
 
+
 # ---------- Qobuz search ----------
+
 
 def qobuz_search(query: str) -> dict:
     """Query the Qobuz search API and return parsed JSON; requires stored credentials."""
@@ -615,13 +749,18 @@ def qobuz_search(query: str) -> dict:
     except Exception as e:
         raise RuntimeError(f"Qobuz search parse error: {e}; raw={data[:280]}")
 
-def pick_best_track(qres: dict, t_title: str, t_artist: str, t_album: str = "") -> Optional[dict]:
+
+def pick_best_track(
+    qres: dict, t_title: str, t_artist: str, t_album: str = ""
+) -> Optional[dict]:
     """Score Qobuz tracks against title/artist/album and return the best match."""
     tracks = (qres.get("tracks") or {}).get("items") or []
     scored = []
     for tr in tracks:
         q_title = tr.get("title", "")
-        q_artist = (tr.get("performer", {}) or {}).get("name", "") or (tr.get("album", {}).get("artist", {}) or {}).get("name", "")
+        q_artist = (tr.get("performer", {}) or {}).get("name", "") or (
+            tr.get("album", {}).get("artist", {}) or {}
+        ).get("name", "")
         q_album = (tr.get("album") or {}).get("title", "")
         # score = weighted sum of overlaps
         s_title = token_set_ratio(t_title, q_title) * 0.5
@@ -630,6 +769,7 @@ def pick_best_track(qres: dict, t_title: str, t_artist: str, t_album: str = "") 
         score = s_title + s_artist + s_album
         scored.append((score, tr))
     return best_match_by_score(scored)
+
 
 def pick_best_album(qres: dict, a_title: str, a_artist: str = "") -> Optional[dict]:
     """Score Qobuz albums against title/artist and return the best match."""
@@ -658,9 +798,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Map a Tidal URL to Qobuz content")
     parser.add_argument("url", help="Tidal track/album/playlist URL")
     parser.add_argument("--json", dest="json_out", help="Write results to JSON file")
-    parser.add_argument("--csv", dest="csv_out", help="Write results to CSV file (playlist only)")
+    parser.add_argument(
+        "--csv", dest="csv_out", help="Write results to CSV file (playlist only)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("--tidal-country", dest="tidal_country", help="TIDAL country code (for OpenAPI fallback)")
+    parser.add_argument(
+        "--tidal-country",
+        dest="tidal_country",
+        help="TIDAL country code (for OpenAPI fallback)",
+    )
     args = parser.parse_args(argv)
 
     url = args.url
@@ -675,18 +821,36 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[error] Failed to load/parse Tidal URL: {e}", file=sys.stderr)
         return 3
 
-    results: Dict[str, Any] = {"source": {"url": url, "type": parsed.get("type")}, "matches": []}
+    results: Dict[str, Any] = {
+        "source": {"url": url, "type": parsed.get("type")},
+        "matches": [],
+    }
 
     if parsed.get("type") == "track":
         qq = build_query_for_track(parsed)
         if args.verbose:
             print(f"[info] Searching Qobuz for: {qq}")
         qres = qobuz_search(qq)
-        best = pick_best_track(qres, parsed.get("title", ""), parsed.get("artist", ""), parsed.get("album", ""))
+        best = pick_best_track(
+            qres,
+            parsed.get("title", ""),
+            parsed.get("artist", ""),
+            parsed.get("album", ""),
+        )
         if best:
             link = QOBUZ_OPEN_TRACK.format(id=best.get("id"))
-            print(f"Track: {parsed.get('artist','')} - {parsed.get('title','')}\n → {link}")
-            results["matches"].append({"type": "track", "qobuz_id": best.get("id"), "open_url": link, "title": best.get("title"), "artist": (best.get("performer") or {}).get("name")})
+            print(
+                f"Track: {parsed.get('artist','')} - {parsed.get('title','')}\n → {link}"
+            )
+            results["matches"].append(
+                {
+                    "type": "track",
+                    "qobuz_id": best.get("id"),
+                    "open_url": link,
+                    "title": best.get("title"),
+                    "artist": (best.get("performer") or {}).get("name"),
+                }
+            )
         else:
             print("[warn] No suitable Qobuz track found.")
 
@@ -701,23 +865,42 @@ def main(argv: Optional[List[str]] = None) -> int:
         if best:
             link = QOBUZ_OPEN_ALBUM.format(id=best.get("id"))
             print(f"Album: {a_artist} - {a_title}\n → {link}")
-            results["matches"].append({"type": "album", "qobuz_id": best.get("id"), "open_url": link, "title": best.get("title"), "artist": (best.get("artist") or {}).get("name")})
+            results["matches"].append(
+                {
+                    "type": "album",
+                    "qobuz_id": best.get("id"),
+                    "open_url": link,
+                    "title": best.get("title"),
+                    "artist": (best.get("artist") or {}).get("name"),
+                }
+            )
         else:
             print("[warn] No suitable Qobuz album found.")
 
     elif parsed.get("type") == "playlist":
         tracks = parsed.get("tracks") or []
         if not tracks:
-            api_tracks = _fetch_playlist_tracks_openapi(url, country=getattr(args, "tidal_country", None))
+            api_tracks = _fetch_playlist_tracks_openapi(
+                url, country=getattr(args, "tidal_country", None)
+            )
             if api_tracks:
                 print("[info] Using TIDAL OpenAPI fallback for playlist tracks")
-                tracks = [{"title": t.get("title"), "artist": t.get("artist"), "album": t.get("album")} for t in api_tracks]
+                tracks = [
+                    {
+                        "title": t.get("title"),
+                        "artist": t.get("artist"),
+                        "album": t.get("album"),
+                    }
+                    for t in api_tracks
+                ]
         if not tracks:
             # last resort: re-fetch HTML from listen.tidal.com explicitly and parse again
             try:
                 # Build an listen.tidal.com URL explicitly to ensure we hit the Next.js app
                 u = urllib.parse.urlparse(url)
-                open_url = urllib.parse.urlunparse(("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment))
+                open_url = urllib.parse.urlunparse(
+                    ("https", "listen.tidal.com", u.path, u.params, u.query, u.fragment)
+                )
                 html2 = http_get(open_url, headers={"User-Agent": UA})
                 parsed2 = parse_tidal_playlist(html2)
                 tracks = parsed2.get("tracks") or tracks
@@ -728,16 +911,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(f"[warn] HTML fallback failed: {e}")
         if not tracks:
             print("[warn] Playlist contained no parsable tracks.")
-            print("[hint] This can happen if the playlist is private or region-locked, or if your token is mismatched.")
+            print(
+                "[hint] This can happen if the playlist is private or region-locked, or if your token is mismatched."
+            )
             print("[hint] Try one of the following:")
             print("       • Unset TIDAL_WEB_TOKEN to use the public web token")
-            print("       • Or export a valid JWT to TIDAL_WEB_TOKEN (will be used as Authorization: Bearer)")
+            print(
+                "       • Or export a valid JWT to TIDAL_WEB_TOKEN (will be used as Authorization: Bearer)"
+            )
             print("       • Or pass --tidal-country US (or another country code)")
             if args.verbose:
-                print("[hint] This can happen if the playlist is private or region-locked, or if your token is mismatched.")
+                print(
+                    "[hint] This can happen if the playlist is private or region-locked, or if your token is mismatched."
+                )
                 print("[hint] Try one of the following:")
                 print("       • Unset TIDAL_WEB_TOKEN to use the public web token")
-                print("       • Or export a valid JWT to TIDAL_WEB_TOKEN (will be used as Authorization: Bearer)")
+                print(
+                    "       • Or export a valid JWT to TIDAL_WEB_TOKEN (will be used as Authorization: Bearer)"
+                )
                 print("       • Or pass --tidal-country US (or another country code)")
         print(f"Playlist: {parsed.get('title','')} — {len(tracks)} track(s)")
         # optional CSV writer
@@ -753,7 +944,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"[info] [{i}/{len(tracks)}] Searching: {qq}")
             try:
                 qres = qobuz_search(qq)
-                best = pick_best_track(qres, t.get("title", ""), t.get("artist", ""), t.get("album", ""))
+                best = pick_best_track(
+                    qres, t.get("title", ""), t.get("artist", ""), t.get("album", "")
+                )
             except SystemExit as se:
                 # credentials error bubbled up, re-raise for clarity
                 if csv_file:
@@ -766,9 +959,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             if best:
                 link = QOBUZ_OPEN_TRACK.format(id=best.get("id"))
                 print(f"  - {t.get('artist','')} - {t.get('title','')} → {link}")
-                results["matches"].append({"type": "track", "qobuz_id": best.get("id"), "open_url": link, "title": best.get("title"), "artist": (best.get("performer") or {}).get("name")})
+                results["matches"].append(
+                    {
+                        "type": "track",
+                        "qobuz_id": best.get("id"),
+                        "open_url": link,
+                        "title": best.get("title"),
+                        "artist": (best.get("performer") or {}).get("name"),
+                    }
+                )
                 if csv_writer:
-                    csv_writer.writerow([t.get("title",""), t.get("artist",""), link, best.get("id")])
+                    csv_writer.writerow(
+                        [t.get("title", ""), t.get("artist", ""), link, best.get("id")]
+                    )
             else:
                 print(f"  - {t.get('artist','')} - {t.get('title','')} → [no match]")
             time.sleep(0.15)  # be gentle

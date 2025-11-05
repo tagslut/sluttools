@@ -7,36 +7,36 @@ to query the indexed data. It uses a ProcessPoolExecutor for efficient, parallel
 metadata processing.
 """
 
+import concurrent.futures
+import logging
 import os
 import sqlite3
-import logging
-from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
-import concurrent.futures
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator, Optional, Union
 
 from rich.progress import Progress
 
-from .config import console, config
+from .config import config, console
 from .metadata import gather_metadata
 
 logger = logging.getLogger(__name__)
 
 # Default supported audio file extensions
-DEFAULT_AUDIO_EXTENSIONS = {'.flac', '.mp3', '.wav', '.m4a', '.ogg'}
+DEFAULT_AUDIO_EXTENSIONS = {".flac", ".mp3", ".wav", ".m4a", ".ogg"}
 
 
 def _normalize_path(path_input: Union[str, Path]) -> Path:
     """
     Normalize and resolve a path consistently across the module.
-    
+
     Args:
         path_input: Raw path string or Path object
-        
+
     Returns:
         Path: Normalized and expanded Path object
-        
+
     Raises:
         ValueError: If path contains suspicious patterns
     """
@@ -44,29 +44,29 @@ def _normalize_path(path_input: Union[str, Path]) -> Path:
         path_str = str(path_input)
     else:
         path_str = str(path_input)
-    
+
     # Strip quotes and expand user directory
-    cleaned = path_str.strip('\'"')
-    
+    cleaned = path_str.strip("'\"")
+
     # Basic path traversal protection
-    if '..' in cleaned or cleaned.startswith('/'):
+    if ".." in cleaned or cleaned.startswith("/"):
         # Allow absolute paths but validate they don't contain traversal patterns
         normalized_parts = []
         for part in Path(cleaned).parts:
-            if part == '..':
+            if part == "..":
                 raise ValueError(f"Path traversal detected in path: {path_input}")
             normalized_parts.append(part)
-    
+
     return Path(cleaned).expanduser().resolve()
 
 
 def _ensure_directory_exists(path: Path) -> bool:
     """
     Safely create directory if it doesn't exist.
-    
+
     Args:
         path: Directory path to create
-        
+
     Returns:
         bool: True if directory exists or was created successfully
     """
@@ -81,44 +81,48 @@ def _ensure_directory_exists(path: Path) -> bool:
 def _get_table_columns(cursor: sqlite3.Cursor, table_name: str) -> set[str]:
     """
     Get column names for a table, with caching to avoid repeated queries.
-    
+
     Args:
         cursor: Database cursor
         table_name: Name of the table
-        
+
     Returns:
         set[str]: Set of column names
     """
     # Whitelist of allowed table names to prevent SQL injection
-    ALLOWED_TABLES = {'flacs', 'formats', 'tags'}
-    
+    ALLOWED_TABLES = {"flacs", "formats", "tags"}
+
     if table_name not in ALLOWED_TABLES:
-        raise ValueError(f"Table name '{table_name}' not in allowed list: {ALLOWED_TABLES}")
-    
+        raise ValueError(
+            f"Table name '{table_name}' not in allowed list: {ALLOWED_TABLES}"
+        )
+
     cursor.execute(f"PRAGMA table_info({table_name})")
     return {row[1] for row in cursor.fetchall()}
 
 
 @contextmanager
-def get_db_connection(db_path: Optional[Union[str, Path]] = None) -> Generator[sqlite3.Connection, None, None]:
+def get_db_connection(
+    db_path: Optional[Union[str, Path]] = None
+) -> Generator[sqlite3.Connection, None, None]:
     """
     Context manager for database connections with proper resource management.
-    
+
     Args:
         db_path: Path to database file, uses config default if None
-        
+
     Yields:
         sqlite3.Connection: Database connection with optimized settings
     """
     if db_path is None:
-        db_path = config['DB_PATH']
-    
+        db_path = config["DB_PATH"]
+
     normalized_path = _normalize_path(db_path)
-    
+
     # Ensure parent directory exists
     if not _ensure_directory_exists(normalized_path.parent):
         raise OSError(f"Cannot create database directory: {normalized_path.parent}")
-    
+
     conn = None
     try:
         conn = sqlite3.connect(str(normalized_path))
@@ -148,14 +152,14 @@ def get_last_n_tracks(n: int = 100) -> list[dict]:
     Returns:
         list[dict]: A list of dictionaries, where each dictionary represents a track's
                     metadata. Returns an empty list if the database or table is not found.
-                    
+
     Raises:
         ValueError: If n is not a positive integer
     """
     if not isinstance(n, int) or n <= 0:
         raise ValueError("n must be a positive integer")
-    
-    db_path = _normalize_path(config['DB_PATH'])
+
+    db_path = _normalize_path(config["DB_PATH"])
     if not db_path.exists():
         return []
 
@@ -170,30 +174,32 @@ def get_last_n_tracks(n: int = 100) -> list[dict]:
         return []
 
 
-def scan_audio_files(library_dir: Path, extensions: Optional[set[str]] = None) -> Generator[Path, None, None]:
+def scan_audio_files(
+    library_dir: Path, extensions: Optional[set[str]] = None
+) -> Generator[Path, None, None]:
     """
     Scans a directory for audio files with configurable extensions.
 
     Args:
         library_dir (Path): The root directory to scan.
-        extensions (set[str], optional): File extensions to scan for. 
+        extensions (set[str], optional): File extensions to scan for.
                                        Defaults to DEFAULT_AUDIO_EXTENSIONS.
 
     Yields:
         Path: The absolute path to each found audio file.
-        
+
     Raises:
         OSError: If library_dir is not accessible
     """
     if extensions is None:
         extensions = DEFAULT_AUDIO_EXTENSIONS
-    
+
     if not library_dir.exists():
         raise OSError(f"Library directory does not exist: {library_dir}")
-    
+
     if not library_dir.is_dir():
         raise OSError(f"Library path is not a directory: {library_dir}")
-    
+
     try:
         for root, _, files in os.walk(library_dir):
             for file in files:
@@ -215,7 +221,7 @@ def scan_flac_files(library_dir: Path) -> Generator[Path, None, None]:
     Yields:
         Path: The absolute path to each found FLAC file.
     """
-    yield from scan_audio_files(library_dir, {'.flac'})
+    yield from scan_audio_files(library_dir, {".flac"})
 
 
 def get_flac_lookup() -> list[tuple[str, str]]:
@@ -244,10 +250,10 @@ def get_flac_lookup() -> list[tuple[str, str]]:
 def _safe_get_mtime(file_path: Path) -> Optional[int]:
     """
     Safely get file modification time, handling race conditions.
-    
+
     Args:
         file_path: Path to the file
-        
+
     Returns:
         Optional[int]: File modification time or None if inaccessible
     """
@@ -263,23 +269,23 @@ def _safe_get_mtime(file_path: Path) -> Optional[int]:
 def _migrate_schema(cursor: sqlite3.Cursor, conn: sqlite3.Connection) -> None:
     """
     Perform database schema migrations efficiently.
-    
+
     Args:
         cursor: Database cursor
         conn: Database connection for commits
     """
     # Get current columns once
-    existing_cols = _get_table_columns(cursor, 'flacs')
-    
+    existing_cols = _get_table_columns(cursor, "flacs")
+
     migrations_needed = []
-    
+
     # Check for missing columns
     if "track_number" not in existing_cols:
         migrations_needed.append("ALTER TABLE flacs ADD COLUMN track_number TEXT")
-    
+
     if "format_json" not in existing_cols:
         migrations_needed.append("ALTER TABLE flacs ADD COLUMN format_json TEXT")
-    
+
     # Execute migrations
     for migration in migrations_needed:
         try:
@@ -287,31 +293,35 @@ def _migrate_schema(cursor: sqlite3.Cursor, conn: sqlite3.Connection) -> None:
             logger.info(f"Applied migration: {migration}")
         except sqlite3.OperationalError as e:
             logger.warning(f"Migration failed: {migration} - {e}")
-    
+
     # Handle legacy column migration
     if "track_number" not in existing_cols:
         # Refresh column list after migrations
-        updated_cols = _get_table_columns(cursor, 'flacs')
+        updated_cols = _get_table_columns(cursor, "flacs")
         if "trackno" in updated_cols and "track_number" in updated_cols:
             try:
-                cursor.execute("UPDATE flacs SET track_number = trackno WHERE track_number IS NULL")
+                cursor.execute(
+                    "UPDATE flacs SET track_number = trackno WHERE track_number IS NULL"
+                )
                 logger.info("Migrated data from legacy 'trackno' column")
             except sqlite3.OperationalError as e:
                 logger.warning(f"Legacy data migration failed: {e}")
-    
+
     if migrations_needed:
         conn.commit()
 
 
-def _purge_vanished_files(cursor: sqlite3.Cursor, conn: sqlite3.Connection, library_dir: Path) -> int:
+def _purge_vanished_files(
+    cursor: sqlite3.Cursor, conn: sqlite3.Connection, library_dir: Path
+) -> int:
     """
     Remove database entries for files that no longer exist.
-    
+
     Args:
         cursor: Database cursor
         conn: Database connection
         library_dir: Library directory path
-        
+
     Returns:
         int: Number of files purged
     """
@@ -319,33 +329,33 @@ def _purge_vanished_files(cursor: sqlite3.Cursor, conn: sqlite3.Connection, libr
     library_pattern = str(library_dir) + "%"
     cursor.execute("SELECT path FROM flacs WHERE path LIKE ?", (library_pattern,))
     db_paths = [row[0] for row in cursor.fetchall()]
-    
+
     purged_files = 0
     for path_str in db_paths:
         if not Path(path_str).exists():
             cursor.execute("DELETE FROM tracks WHERE file_path = ?", (path_str,))
             purged_files += 1
-    
+
     if purged_files > 0:
         conn.commit()
         logger.info(f"Purged {purged_files} vanished files")
-    
+
     return purged_files
 
 
 def _process_metadata_row(row_data: tuple) -> Optional[tuple]:
     """
     Process metadata row to match database schema with validation.
-    
+
     The gather_metadata function returns:
     (path, norm, mtime, artist, album, title, trackno, year, format_json)
-    
+
     But our database expects:
     (path, norm, mtime, artist, album, title, track_number, year, format_json)
-    
+
     Args:
         row_data: Raw row data from gather_metadata
-        
+
     Returns:
         Optional[tuple]: Processed row data matching database schema, or None if invalid
     """
@@ -353,19 +363,19 @@ def _process_metadata_row(row_data: tuple) -> Optional[tuple]:
         if not row_data or len(row_data) < 9:
             logger.warning(f"Invalid row data structure: {row_data}")
             return None
-        
+
         # Extract fields from the row
         path, norm, mtime, artist, album, title, trackno, year, format_json = row_data
-        
+
         # Validate required fields
         if not path:
             logger.warning("Missing required field 'path' in metadata row")
             return None
-        
+
         if not norm:
             logger.warning(f"Missing required field 'norm' for path: {path}")
             return None
-        
+
         # Validate path exists and is accessible
         try:
             path_obj = Path(path)
@@ -375,10 +385,10 @@ def _process_metadata_row(row_data: tuple) -> Optional[tuple]:
         except (OSError, ValueError) as e:
             logger.warning(f"Invalid path in metadata: {path} - {e}")
             return None
-        
+
         # Convert trackno to track_number (field name standardization)
         track_number = str(trackno) if trackno is not None else None
-        
+
         # Ensure all fields are properly formatted with validation
         try:
             processed_mtime = int(mtime) if mtime is not None else 0
@@ -388,7 +398,7 @@ def _process_metadata_row(row_data: tuple) -> Optional[tuple]:
         except (ValueError, TypeError):
             logger.warning(f"Invalid mtime format {mtime} for path: {path}")
             processed_mtime = 0
-        
+
         processed_row = (
             str(path),
             str(norm),
@@ -398,43 +408,45 @@ def _process_metadata_row(row_data: tuple) -> Optional[tuple]:
             str(title) if title else "",
             track_number,
             str(year) if year else None,
-            str(format_json) if format_json else "{}"
+            str(format_json) if format_json else "{}",
         )
-        
+
         return processed_row
-        
+
     except (ValueError, TypeError, IndexError) as e:
         logger.error(f"Error processing metadata row {row_data}: {e}")
         return None
 
 
-def _find_files_to_scan(library_dir: Path, cursor: sqlite3.Cursor, batch_size: int = 1000) -> Generator[list[Path], None, None]:
+def _find_files_to_scan(
+    library_dir: Path, cursor: sqlite3.Cursor, batch_size: int = 1000
+) -> Generator[list[Path], None, None]:
     """
     Find files that need scanning, yielding in batches to manage memory.
     Uses chunked database queries to avoid loading all mtimes into memory at once.
-    
+
     Args:
         library_dir: Library directory to scan
         cursor: Database cursor
         batch_size: Number of files per batch
-        
+
     Yields:
         list[Path]: Batches of files that need scanning
     """
     batch = []
-    
+
     # Process files in chunks to manage memory usage
     for file_path in scan_audio_files(library_dir):
         path_str = str(file_path)
         file_mtime = _safe_get_mtime(file_path)
-        
+
         if file_mtime is None:
             continue  # Skip inaccessible files
-        
+
         # Check if file needs scanning using individual query to avoid memory issues
         cursor.execute("SELECT mtime FROM flacs WHERE path = ?", (path_str,))
         result = cursor.fetchone()
-        
+
         needs_scanning = False
         if result is None:
             # File not in database
@@ -444,14 +456,14 @@ def _find_files_to_scan(library_dir: Path, cursor: sqlite3.Cursor, batch_size: i
             if file_mtime != db_mtime:
                 # File has been modified
                 needs_scanning = True
-        
+
         if needs_scanning:
             batch.append(file_path)
-            
+
             if len(batch) >= batch_size:
                 yield batch
                 batch = []
-    
+
     # Yield remaining files
     if batch:
         yield batch
@@ -469,7 +481,7 @@ def refresh_library(db_path_str: str, library_dir_str: str, quick: bool = True):
         db_path_str (str): The path to the SQLite database file, provided from the config.
         library_dir_str (str): The root directory of the music library to scan.
         quick (bool): If True, skips the slow `ffprobe` scan for format information.
-        
+
     Raises:
         OSError: If database or library directory is inaccessible
         ValueError: If paths are invalid
@@ -489,7 +501,7 @@ def refresh_library(db_path_str: str, library_dir_str: str, quick: bool = True):
     try:
         with get_db_connection(db_path) as conn:
             cur = conn.cursor()
-            
+
             # Create table
             cur.execute(
                 """
@@ -514,37 +526,42 @@ def refresh_library(db_path_str: str, library_dir_str: str, quick: bool = True):
             # Purge vanished files
             purged_count = _purge_vanished_files(cur, conn, library_dir)
             if purged_count > 0:
-                console.print(f"[yellow]Purged {purged_count} vanished files from this library.[/yellow]")
+                console.print(
+                    f"[yellow]Purged {purged_count} vanished files from this library.[/yellow]"
+                )
 
             # Scan for new/updated files
             console.print("[cyan]Scanning for file changes...[/cyan]")
-            
+
             total_processed = 0
             total_updated = 0
-            
+
             for batch in _find_files_to_scan(library_dir, cur):
                 if not batch:
                     continue
-                
+
                 console.print(f"[cyan]Processing batch of {len(batch)} files...[/cyan]")
-                
+
                 results = []
                 with Progress(console=console) as progress:
-                    task = progress.add_task("[green]Indexing tracks:", total=len(batch))
-                    
+                    task = progress.add_task(
+                        "[green]Indexing tracks:", total=len(batch)
+                    )
+
                     with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-                        futures = [
-                            executor.submit(gather_metadata, p)
-                            for p in batch
-                        ]
-                        
+                        futures = [executor.submit(gather_metadata, p) for p in batch]
+
                         for future in concurrent.futures.as_completed(futures):
                             try:
                                 result = future.result()
                                 if result:
                                     # gather_metadata returns (row, formats_row, tags_rows)
                                     # We need the first element (row) for database insertion
-                                    row_data = result[0] if isinstance(result, tuple) else result
+                                    row_data = (
+                                        result[0]
+                                        if isinstance(result, tuple)
+                                        else result
+                                    )
                                     if row_data:
                                         # Convert the row data to match our database schema
                                         processed_row = _process_metadata_row(row_data)
@@ -563,14 +580,16 @@ def refresh_library(db_path_str: str, library_dir_str: str, quick: bool = True):
                     )
                     conn.commit()
                     total_updated += len(results)
-                
+
                 total_processed += len(batch)
 
             if total_processed == 0:
                 console.print("[green]No new or updated files found.[/green]")
             else:
-                console.print(f"[green]Processed {total_processed} files, updated {total_updated} in database.[/green]")
-                
+                console.print(
+                    f"[green]Processed {total_processed} files, updated {total_updated} in database.[/green]"
+                )
+
     except Exception as e:
         logger.error(f"Error during library refresh: {e}")
         raise
@@ -579,7 +598,7 @@ def refresh_library(db_path_str: str, library_dir_str: str, quick: bool = True):
 def get_session(db_path: Optional[Union[str, Path]] = None) -> sqlite3.Connection:
     """
     Creates and returns a connection (session) to the SQLite database.
-    
+
     WARNING: This function returns an open connection that must be closed by the caller.
     Consider using get_db_connection() context manager instead for automatic resource management.
 
@@ -588,18 +607,18 @@ def get_session(db_path: Optional[Union[str, Path]] = None) -> sqlite3.Connectio
 
     Returns:
         sqlite3.Connection: A connection object to the database.
-        
+
     Raises:
         OSError: If database directory cannot be created or accessed
     """
     if db_path is None:
-        db_path = config['DB_PATH']
-    
+        db_path = config["DB_PATH"]
+
     normalized_path = _normalize_path(db_path)
-    
+
     if not _ensure_directory_exists(normalized_path.parent):
         raise OSError(f"Cannot create database directory: {normalized_path.parent}")
-    
+
     try:
         conn = sqlite3.connect(str(normalized_path))
         conn.execute("PRAGMA journal_mode = WAL")

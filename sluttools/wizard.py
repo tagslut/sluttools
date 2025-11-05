@@ -9,15 +9,15 @@ It is fully integrated with the application's central configuration and database
 """
 
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
-import json
 
 from rich.align import Align
 from rich.console import Console
 from rich.live import Live
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
 # --- Import Handling for Direct Execution vs. Package Import ---
@@ -26,8 +26,8 @@ from rich.text import Text
 # a module within the 'sluttools' package.
 try:
     # Attempt relative imports first (for when wizard.py is imported as part of the sluttools package)
-    from .config import console, config, CONFIG_FILE, CONFIG_PATH
-    from .database import refresh_library, get_last_n_tracks, get_flac_lookup
+    from .config import CONFIG_FILE, CONFIG_PATH, config, console
+    from .database import get_flac_lookup, get_last_n_tracks, refresh_library
     from .matching import get_playlist_tracks, perform_matching_with_review
 except ImportError:
     # If relative import fails, it means wizard.py is likely being run directly.
@@ -39,17 +39,18 @@ except ImportError:
     #     └── config.py
     # We need to add 'project_root' to sys.path.
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir)) # Go up two levels
+    project_root = os.path.dirname(os.path.dirname(script_dir))  # Go up two levels
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
     # Now, try absolute imports from the 'sluttools' package
-    from sluttools.config import console, config, CONFIG_FILE, CONFIG_PATH
-    from sluttools.database import refresh_library, get_last_n_tracks, get_flac_lookup
+    from sluttools.config import CONFIG_FILE, CONFIG_PATH, config, console
+    from sluttools.database import get_flac_lookup, get_last_n_tracks, refresh_library
     from sluttools.matching import get_playlist_tracks, perform_matching_with_review
 
 
 # --- Configuration Wizard ---
+
 
 def launch_config_wizard():
     """Synchronous entry point for the configuration wizard."""
@@ -58,6 +59,7 @@ def launch_config_wizard():
     except (KeyboardInterrupt, EOFError):
         console.print("\n[bold red]Setup aborted by user. Exiting...[/bold red]")
         sys.exit(0)
+
 
 def run_config_wizard():
     """Guides the user through setting up the initial configuration."""
@@ -86,32 +88,29 @@ def run_config_wizard():
     # 2. DB Path
     default_db_path = str(CONFIG_FILE.parent / "sluttools.db")
     db_path = safe_prompt(
-        "[bold]Enter the path for the database file[/bold]",
-        default=default_db_path
+        "[bold]Enter the path for the database file[/bold]", default=default_db_path
     )
 
     # 3. M3U Path
     default_m3u_path = str(Path.home() / "Music/Playlists/{playlist_name}.m3u")
     m3u_path = safe_prompt(
-        "[bold]Enter the output path for M3U playlists[/bold]",
-        default=default_m3u_path
+        "[bold]Enter the output path for M3U playlists[/bold]", default=default_m3u_path
     )
 
     # 4. JSON Path
-    default_json_path = str(Path.home() / "Music/Playlists/{playlist_name}_unmatched.json")
+    default_json_path = str(
+        Path.home() / "Music/Playlists/{playlist_name}_unmatched.json"
+    )
     json_path = safe_prompt(
-        "[bold]Enter the output path for JSON reports[/bold]",
-        default=default_json_path
+        "[bold]Enter the output path for JSON reports[/bold]", default=default_json_path
     )
 
     # 5. Thresholds
     threshold_auto = safe_prompt(
-        "[bold]Enter the auto-match threshold (0-100)[/bold]",
-        default="85"
+        "[bold]Enter the auto-match threshold (0-100)[/bold]", default="85"
     )
     review_min = safe_prompt(
-        "[bold]Enter the minimum score for manual review (0-100)[/bold]",
-        default="75"
+        "[bold]Enter the minimum score for manual review (0-100)[/bold]", default="75"
     )
 
     # Create config dictionary
@@ -121,12 +120,14 @@ def run_config_wizard():
         "MATCH_OUTPUT_PATH_M3U": m3u_path,  # Fixed key name to match what's used in code
         "MATCH_OUTPUT_PATH_JSON": json_path,  # Fixed key name to match what's used in code
         "THRESHOLD_AUTO_MATCH": int(threshold_auto),
-        "THRESHOLD_REVIEW_MIN": int(review_min)  # Fixed key name to match what's used in code
+        "THRESHOLD_REVIEW_MIN": int(
+            review_min
+        ),  # Fixed key name to match what's used in code
     }
 
     # Save config file
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(new_config, f, indent=4)
 
     console.print(f"\n[bold green]✓ Configuration saved to {CONFIG_PATH}[/bold green]")
@@ -134,6 +135,7 @@ def run_config_wizard():
 
 
 # --- Matching Wizard ---
+
 
 def launch_matching_wizard():
     """Synchronous entry point to launch the matching wizard."""
@@ -143,13 +145,17 @@ def launch_matching_wizard():
         console.print("\n[bold red]Wizard aborted by user. Exiting...[/bold red]")
         sys.exit(0)
 
+
 async def run_matching_wizard():
     """The main function that executes the interactive matching wizard."""
     try:
         # 1. Initial Setup & UI
         console.clear()
 
-        if Confirm.ask("[bold yellow]Show last 100 tracks from DB before proceeding?[/bold yellow]", default=False):
+        if Confirm.ask(
+            "[bold yellow]Show last 100 tracks from DB before proceeding?[/bold yellow]",
+            default=False,
+        ):
             with console.status("Loading recent tracks..."):
                 recent_tracks = get_last_n_tracks(100)
             if recent_tracks:
@@ -166,7 +172,11 @@ async def run_matching_wizard():
         # Keep prompting until a non-empty, existing file path is provided (or user aborts)
         path_in_str = ""
         while True:
-            raw = safe_prompt("[bold yellow]Enter path to a playlist file[/bold yellow]").strip("'\"").strip()
+            raw = (
+                safe_prompt("[bold yellow]Enter path to a playlist file[/bold yellow]")
+                .strip("'\"")
+                .strip()
+            )
             if not raw:
                 console.print("[red]Please enter a path to a playlist file.[/red]")
                 if not Confirm.ask("Try again?", default=True):
@@ -183,14 +193,18 @@ async def run_matching_wizard():
         playlist_name = Path(path_in_str).stem
 
         # 3. Load Library & Playlist
-        if Confirm.ask("[bold yellow]Refresh music library database?[/bold yellow]", default=True):
-            for library_root in config['LIBRARY_ROOTS']:
+        if Confirm.ask(
+            "[bold yellow]Refresh music library database?[/bold yellow]", default=True
+        ):
+            for library_root in config["LIBRARY_ROOTS"]:
                 console.print(f"--- Scanning [bold]{library_root}[/bold] ---")
-                refresh_library(config['DB_PATH'], library_root)
+                refresh_library(config["DB_PATH"], library_root)
 
         flac_lookup = get_flac_lookup()
         if not flac_lookup:
-            console.print("[bold red]Your music library is empty. The wizard cannot continue.[/bold red]")
+            console.print(
+                "[bold red]Your music library is empty. The wizard cannot continue.[/bold red]"
+            )
             return
         console.print(f"FLAC index contains {len(flac_lookup)} entries.")
 
@@ -204,8 +218,8 @@ async def run_matching_wizard():
             entries,
             flac_lookup,
             playlist_input=path_in_str,
-            threshold=int(config.get('THRESHOLD_AUTO_MATCH', 88)),
-            review_min=int(config.get('THRESHOLD_REVIEW_MIN', 70)),
+            threshold=int(config.get("THRESHOLD_AUTO_MATCH", 88)),
+            review_min=int(config.get("THRESHOLD_REVIEW_MIN", 70)),
         )
 
         # 4.5 Post-review summary (clarifies any pre-review banners)
@@ -220,15 +234,21 @@ async def run_matching_wizard():
                 f"unmatched: {total_unmatched}"
             )
         except Exception as _e:
-            console.print(f"[yellow]Note: Could not compute final summary ({_e}).[/yellow]")
+            console.print(
+                f"[yellow]Note: Could not compute final summary ({_e}).[/yellow]"
+            )
 
         # 5. Export Results
         _export_results(matched_paths, playlist_name, config)
 
     except Exception as e:
-        console.print(f"[bold red]An unexpected error occurred in the wizard: {e}[/bold red]")
+        console.print(
+            f"[bold red]An unexpected error occurred in the wizard: {e}[/bold red]"
+        )
         import traceback
+
         console.print(traceback.format_exc())
+
 
 def _export_results(matched_paths: dict, playlist_name: str, config: dict):
     """
@@ -241,28 +261,35 @@ def _export_results(matched_paths: dict, playlist_name: str, config: dict):
     final_unmatched = [e for e, p in matched_paths.items() if p is None]
 
     # Export M3U for matched tracks
-    if final_matched and Confirm.ask(f"[bold yellow]Create M3U for {len(final_matched)} matched tracks?[/bold yellow]", default=True):
-        m3u_path_template = config['MATCH_OUTPUT_PATH_M3U']
+    if final_matched and Confirm.ask(
+        f"[bold yellow]Create M3U for {len(final_matched)} matched tracks?[/bold yellow]",
+        default=True,
+    ):
+        m3u_path_template = config["MATCH_OUTPUT_PATH_M3U"]
         # Accept either str or Path in config; always format as string first
         m3u_path_str = str(m3u_path_template).format(playlist_name=playlist_name)
         m3u_path = Path(m3u_path_str)
         m3u_path.parent.mkdir(exist_ok=True, parents=True)
-        with open(m3u_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(final_matched) + '\n')
+        with open(m3u_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(final_matched) + "\n")
         console.print(f"[cyan]✓ M3U saved to {m3u_path}[/cyan]")
 
     # Export JSON for unmatched tracks
-    if final_unmatched and Confirm.ask(f"[bold yellow]Export {len(final_unmatched)} unmatched tracks to JSON?[/bold yellow]", default=True):
-        json_path_template = config['MATCH_OUTPUT_PATH_JSON']
+    if final_unmatched and Confirm.ask(
+        f"[bold yellow]Export {len(final_unmatched)} unmatched tracks to JSON?[/bold yellow]",
+        default=True,
+    ):
+        json_path_template = config["MATCH_OUTPUT_PATH_JSON"]
         json_path_str = str(json_path_template).format(playlist_name=playlist_name)
         json_path = Path(json_path_str)
         json_path.parent.mkdir(exist_ok=True, parents=True)
-        with open(json_path, 'w', encoding='utf-8') as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(final_unmatched, f, indent=4)
         console.print(f"[cyan]✓ Unmatched tracks log saved to {json_path}[/cyan]")
 
 
 # --- UI & Rendering --
+
 
 def render_design_box(offset: int) -> Text:
     """Renders the animated 'GEORGIE'S PLAYLIST MAGIC BOX' title."""
@@ -302,7 +329,9 @@ def render_design_box(offset: int) -> Text:
     dashes_each = available // 2
     bottom_line = Text("─" * dashes_each, style="bold green")
     bottom_line.append(arabic_text, style="bold dark_green")
-    bottom_line.append("─" * (total_width - dashes_each - arabic_length), style="bold green")
+    bottom_line.append(
+        "─" * (total_width - dashes_each - arabic_length), style="bold green"
+    )
     box.append(bottom_line)
     return box
 
@@ -314,17 +343,23 @@ async def animate_title():
     refresh_rate = 0.2
     wait_time = 4.0
 
-    with Live(console=console, refresh_per_second=1 / refresh_rate, auto_refresh=False) as live:
+    with Live(
+        console=console, refresh_per_second=1 / refresh_rate, auto_refresh=False
+    ) as live:
         while not enter_future.done():
             elapsed = asyncio.get_event_loop().time() - start_time
             offset = int(elapsed * 5)
             box_text = render_design_box(offset)
 
             if elapsed >= wait_time:
-                prompt_text = "ENTER" if int(elapsed / refresh_rate) % 2 == 0 else "     "
+                prompt_text = (
+                    "ENTER" if int(elapsed / refresh_rate) % 2 == 0 else "     "
+                )
                 pad_left = (70 - len(prompt_text)) // 2
                 enter_line = " " * pad_left + prompt_text
-                combined = Text("\n\n").join([box_text, Text(enter_line, style="bold dark_grey")])
+                combined = Text("\n\n").join(
+                    [box_text, Text(enter_line, style="bold dark_grey")]
+                )
                 live.update(Align.center(combined), refresh=True)
             else:
                 live.update(Align.center(box_text), refresh=True)
@@ -361,13 +396,13 @@ if __name__ == "__main__":
         "--threshold",
         type=int,
         default=None,
-        help="Auto-match threshold (0-100) to override config."
+        help="Auto-match threshold (0-100) to override config.",
     )
     parser.add_argument(
         "--review",
         type=int,
         default=None,
-        help="Minimum score for manual review (0-100) to override config."
+        help="Minimum score for manual review (0-100) to override config.",
     )
     args = parser.parse_args()
 

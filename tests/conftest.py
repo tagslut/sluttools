@@ -1,6 +1,8 @@
-import pytest
-import sqlite3
 import os
+import sqlite3
+
+import pytest
+
 
 @pytest.fixture
 def setup_database(tmp_path):

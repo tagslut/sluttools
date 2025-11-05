@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Tuple, List, Optional
 import json
-
 import os
 import re
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def normalize_string(s: Optional[str]) -> str:
@@ -41,8 +39,8 @@ def gather_metadata(p: Path | str):
         None,  # artist
         None,  # album
         title,  # title
-        None,   # trackno
-        None,   # year
+        None,  # trackno
+        None,  # year
         json.dumps({}),  # format_json
     )
     return (row, None, [])
@@ -53,6 +51,7 @@ def gather_metadata(p: Path | str):
 def calculate_match_score(source, candidate):
     """Placeholder scoring function. Returns 0.0 until fully implemented."""
     return 0.0
+
 
 def parse_filename_structure(p: Path | str) -> Dict[str, Any]:
     """Parse a music file path into a lightweight metadata dict.
