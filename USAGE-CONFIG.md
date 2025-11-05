@@ -51,3 +51,10 @@ Effective configuration precedence:
 - On first run, the tool prompts for LIBRARY_ROOTS and creates `~/.config/sluttools/config.json`.
 - Paths in the effective configuration are expanded to absolute paths where applicable.
 - You can disable the animated UI with either `--plain` flag on interactive commands or by setting `SLUT_PLAIN=1`.
+
+## Troubleshooting
+
+- **Configuration file missing or corrupted**: Delete or rename `~/.config/sluttools/config.json` and re-run `poetry run slut get library` to regenerate it.
+- **Library paths not rescanned**: Pass `--refresh yes` to force a rescan, or delete the cached SQLite database referenced by `DB_PATH`.
+- **Environment overrides not applied**: Ensure you export variables with the `SLUT_` prefix in the same shell session. Run `poetry run slut config show --verbose` to inspect the effective configuration.
+- **Headless/CI environments**: Set `SLUT_PLAIN=1` and use non-interactive commands like `poetry run slut match auto ...` to avoid prompts.

@@ -53,20 +53,10 @@ poetry run slut get library
 
 A typical workflow involves refreshing the library and matching a playlist.
 
-1. **Refresh Your Library**: First, scan your music collection to create or update the local database. If it's your first time, this will trigger the setup wizard.
+1. **Refresh Your Library**: Scan your music collection to create or update the local database. On the first run this launches the setup wizard so you can pick your library paths.
 
    ```bash
-   sqlite3 "$DB" <<'SQL'
-CREATE TRIGGER IF NOT EXISTS flacs_ins
-INSTEAD OF INSERT ON flacs
-BEGIN
-  INSERT INTO tracks (file_path, artist, album, title, track_number, year, last_modified)
-  VALUES (NEW.path, NEW.artist, NEW.album, NEW.title,
-          CAST(NEW.trackno AS INTEGER),
-          CAST(NEW.year AS INTEGER),
-          datetime(NEW.mtime, 'unixepoch'));
-END;
-SQL
+   poetry run slut get library
    ```
 2. **Match a Playlist**: Once the database is up-to-date, you can match a playlist.
 
@@ -79,7 +69,7 @@ SQL
 
 ## Project Layout
 
-See docs/PROJECT_STRUCTURE.md for a full overview. In short:
+See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a full overview. In short:
 
 - Core app code is in the `sluttools/` package.
 - Helper scripts live in `scripts/`.
@@ -193,6 +183,14 @@ Examples:
 - Edit: `poetry run slut config edit`
 - Show: `poetry run slut config show`
 
+### `list`
+
+Inspect library contents and cached metadata:
+
+- Albums: `poetry run slut list albums`
+- Artists: `poetry run slut list artists`
+- Tracks: `poetry run slut list tracks --limit 20`
+
 ## Advanced Configuration
 
 Your personalized settings are stored in `~/.config/sluttools/config.json`. The effective configuration is computed with precedence: environment variables > user config file > built-in defaults.
@@ -208,7 +206,7 @@ Environment variable overrides (examples):
 
 See USAGE-CONFIG.md for the full schema and examples.
 
-## Interactive Wizard (wizard.py)
+## Interactive Wizard
 
 The project includes an optional full-screen interactive wizard, built with Rich, that provides a guided experience for both initial configuration and playlist matching.
 
@@ -232,7 +230,7 @@ Notes:
 
 ### `tidal2qobuz.py`
 
-This project also includes a powerful standalone script for mapping Tidal URLs to their Qobuz equivalents.
+This project also includes a standalone script for mapping Tidal URLs to their Qobuz equivalents.
 
 **Features:**
 
@@ -263,3 +261,20 @@ This script requires the `keyring` library and your Qobuz credentials.
 ```bash
 python tidal2qobuz.py "https://tidal.com/track/..."
 ```
+
+## Development
+
+Set up a local development environment with Poetry:
+
+```bash
+poetry install
+poetry shell
+```
+
+Useful commands:
+
+- Run the test suite: `poetry run pytest`
+- Check types and lint: `poetry run mypy`, `poetry run flake8`, and `poetry run bandit -r sluttools`
+- Format code: `poetry run black .` and `poetry run isort .`
+
+The repository includes a [tasks checklist](docs/tasks.md) that outlines ongoing refactors and cleanup plans. See [docs/REFACTOR_PROPOSAL.md](docs/REFACTOR_PROPOSAL.md) for additional context on historical changes.
